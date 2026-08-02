@@ -525,18 +525,18 @@ input[type='range']::-webkit-slider-thumb:hover {
   width: 56px;
   height: 56px;
   border-radius: 12px;
-  overflow: hidden;
-  background: #f1f5f9;
+  overflow: visible;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .icon-preview-box img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.22));
 }
 
 .icon-option-name {
