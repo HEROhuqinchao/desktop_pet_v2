@@ -6,6 +6,7 @@ import type {
   PetSyncReport,
 } from '../shared/contracts';
 import {
+  ACTION_MANIFEST_FILE,
   PetPackageConflictError,
   PetPackageError,
   PetPackageValidator,
@@ -221,6 +222,19 @@ export class PetLibrary {
         sourcePackage.spritesheet,
         path.join(temporary, sourcePackage.manifest.spritesheetPath),
       );
+      if (sourcePackage.actionPack) {
+        await fs.copyFile(
+          sourcePackage.actionPack.manifestPath,
+          path.join(temporary, ACTION_MANIFEST_FILE),
+        );
+        await fs.copyFile(
+          sourcePackage.actionPack.atlas,
+          path.join(
+            temporary,
+            sourcePackage.actionPack.manifest.atlasPath,
+          ),
+        );
+      }
       if (writeSourceMarker) {
         await fs.writeFile(
           path.join(temporary, SOURCE_MARKER),

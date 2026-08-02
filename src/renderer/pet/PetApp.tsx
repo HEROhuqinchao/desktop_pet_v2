@@ -10,12 +10,18 @@ import {
   animationForMotion,
   frameAtElapsed,
   framePosition,
-  type AtlasAnimationName,
 } from '../../core/atlas';
+import {
+  actionForState,
+  actionFrameAtElapsed,
+  actionFramePosition,
+  actionHasCompleted,
+} from '../../core/action-atlas';
 import {
   PET_CELL_HEIGHT,
   PET_CELL_WIDTH,
   type MotionState,
+  type PetActionDefinition,
   type PetCatalogEntry,
   type PetSettings,
 } from '../../shared/contracts';
@@ -32,6 +38,7 @@ const DEFAULT_MOTION: MotionState = {
   velocityX: 0,
   velocityY: 0,
   lookFrame: null,
+  animationCue: null,
   overlay: {
     emotion: 'normal',
     activeEvent: null,
@@ -82,8 +89,16 @@ export function PetApp() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hitCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
-  const animationNameRef = useRef<AtlasAnimationName>('idle');
+  const actionImageRef = useRef<HTMLImageElement | null>(null);
+  const renderKeyRef = useRef('base:idle');
   const animationStartedAtRef = useRef(0);
+  const handledCueIdRef = useRef<number | null>(null);
+  const cuePlaybackRef = useRef<{
+    id: number;
+    action: string;
+    definition: PetActionDefinition;
+    startedAt: number;
+  } | null>(null);
   const phaseStartedAtRef = useRef(0);
   const motionRef = useRef<MotionState>(DEFAULT_MOTION);
   const settingsRef = useRef<PetSettings>(DEFAULT_SETTINGS);
@@ -117,6 +132,9 @@ export function PetApp() {
       return;
     }
     let cancelled = false;
+    actionImageRef.current = null;
+    cuePlaybackRef.current = null;
+    handledCueIdRef.current = null;
     const image = new Image();
     image.decoding = 'async';
     image.crossOrigin = 'anonymous';
@@ -139,9 +157,29 @@ export function PetApp() {
       `pet-asset://current/spritesheet?v=${encodeURIComponent(
         activePet.contentHash,
       )}`;
+    if (activePet.actionManifest) {
+      const actionImage = new Image();
+      actionImage.decoding = 'async';
+      actionImage.crossOrigin = 'anonymous';
+      actionImage.onload = () => {
+        if (!cancelled) {
+          actionImageRef.current = actionImage;
+        }
+      };
+      actionImage.onerror = () => {
+        if (!cancelled) {
+          actionImageRef.current = null;
+        }
+      };
+      actionImage.src =
+        `pet-asset://current/actions?v=${encodeURIComponent(
+          activePet.contentHash,
+        )}`;
+    }
     return () => {
       cancelled = true;
       imageRef.current = null;
+      actionImageRef.current = null;
     };
   }, [activePet]);
 
@@ -193,25 +231,105 @@ export function PetApp() {
       }
 
       const motion = motionRef.current;
-      const preferredAnimation =
-        timestamp < interactionUntilRef.current
-          ? 'wave'
-        : activePet?.spriteVersionNumber === 2
-          && motion.lookFrame !== null
-          && ['IDLE', 'LOOK_AT_CURSOR'].includes(motion.behaviorState)
-          ? 'look'
-        : animationForMotion(motion);
-      if (preferredAnimation !== animationNameRef.current) {
-        animationNameRef.current = preferredAnimation;
-        animationStartedAtRef.current = timestamp;
+      const actionManifest = activePet?.actionManifest ?? null;
+      const actionImage = actionImageRef.current;
+      const cue = motion.animationCue;
+      if (
+        cue
+        && cue.id !== handledCueIdRef.current
+        && actionManifest
+        && actionImage
+      ) {
+        handledCueIdRef.current = cue.id;
+        const definition = actionManifest.animations[cue.action];
+        if (definition) {
+          cuePlaybackRef.current = {
+            id: cue.id,
+            action: cue.action,
+            definition,
+            startedAt: timestamp,
+          };
+        }
       }
-      const animation = ATLAS_ANIMATIONS[animationNameRef.current];
-      const elapsedSeconds = (timestamp - animationStartedAtRef.current) / 1_000;
-      const frame =
-        preferredAnimation === 'look' && motion.lookFrame !== null
-          ? motion.lookFrame
-          : frameAtElapsed(animation, elapsedSeconds);
-      const [sourceRow, sourceColumn] = framePosition(animation, frame);
+
+      let cuePlayback = cuePlaybackRef.current;
+      if (
+        cuePlayback
+        && actionHasCompleted(
+          cuePlayback.definition,
+          (timestamp - cuePlayback.startedAt) / 1_000,
+        )
+      ) {
+        cuePlaybackRef.current = null;
+        cuePlayback = null;
+      }
+
+      const lookActive =
+        activePet?.spriteVersionNumber === 2
+        && motion.lookFrame !== null
+        && ['IDLE', 'LOOK_AT_CURSOR'].includes(motion.behaviorState);
+      const stateAction =
+        !cuePlayback
+        && timestamp >= interactionUntilRef.current
+        && !lookActive
+        && actionManifest
+        && actionImage
+          ? actionForState(actionManifest, motion.behaviorState)
+          : null;
+
+      let sourceImage = image;
+      let sourceRow: number;
+      let sourceColumn: number;
+      if (cuePlayback && actionImage) {
+        const renderKey = `cue:${cuePlayback.id}:${cuePlayback.action}`;
+        if (renderKeyRef.current !== renderKey) {
+          renderKeyRef.current = renderKey;
+          animationStartedAtRef.current = cuePlayback.startedAt;
+        }
+        const frame = actionFrameAtElapsed(
+          cuePlayback.definition,
+          (timestamp - cuePlayback.startedAt) / 1_000,
+          false,
+        );
+        [sourceRow, sourceColumn] = actionFramePosition(
+          cuePlayback.definition,
+          frame,
+        );
+        sourceImage = actionImage;
+      } else if (stateAction && actionManifest && actionImage) {
+        const renderKey = `action:${stateAction}`;
+        if (renderKeyRef.current !== renderKey) {
+          renderKeyRef.current = renderKey;
+          animationStartedAtRef.current = timestamp;
+        }
+        const definition = actionManifest.animations[stateAction]!;
+        const frame = actionFrameAtElapsed(
+          definition,
+          (timestamp - animationStartedAtRef.current) / 1_000,
+        );
+        [sourceRow, sourceColumn] = actionFramePosition(definition, frame);
+        sourceImage = actionImage;
+      } else {
+        const preferredAnimation =
+          timestamp < interactionUntilRef.current
+            ? 'wave'
+            : lookActive
+              ? 'look'
+              : animationForMotion(motion);
+        const renderKey = `base:${preferredAnimation}`;
+        if (renderKeyRef.current !== renderKey) {
+          renderKeyRef.current = renderKey;
+          animationStartedAtRef.current = timestamp;
+        }
+        const animation = ATLAS_ANIMATIONS[preferredAnimation];
+        const elapsedSeconds =
+          (timestamp - animationStartedAtRef.current) / 1_000;
+        const frame =
+          preferredAnimation === 'look' && motion.lookFrame !== null
+            ? motion.lookFrame
+            : frameAtElapsed(animation, elapsedSeconds);
+        [sourceRow, sourceColumn] = framePosition(animation, frame);
+      }
       const sourceX = sourceColumn * PET_CELL_WIDTH;
       const sourceY = sourceRow * PET_CELL_HEIGHT;
 
@@ -229,7 +347,7 @@ export function PetApp() {
         context.imageSmoothingEnabled = true;
         context.imageSmoothingQuality = 'high';
         context.drawImage(
-          image,
+          sourceImage,
           sourceX,
           sourceY,
           PET_CELL_WIDTH,
@@ -245,6 +363,7 @@ export function PetApp() {
           phaseSeconds,
           overlay: motion.overlay,
           desktopEffects: settingsRef.current.desktopEffects,
+          customActionVisuals: sourceImage === actionImage,
         });
       }
 
@@ -255,7 +374,7 @@ export function PetApp() {
       if (hitContext) {
         hitContext.clearRect(0, 0, PET_CELL_WIDTH, PET_CELL_HEIGHT);
         hitContext.drawImage(
-          image,
+          sourceImage,
           sourceX,
           sourceY,
           PET_CELL_WIDTH,
@@ -274,7 +393,7 @@ export function PetApp() {
     phaseStartedAtRef.current = performance.now();
     animationFrame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationFrame);
-  }, [activePet?.spriteVersionNumber, ready]);
+  }, [activePet?.spriteVersionNumber, activePet?.actionManifest, ready]);
 
   const isOpaqueAt = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;

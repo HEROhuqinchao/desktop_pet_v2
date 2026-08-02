@@ -1,0 +1,4 @@
+interface:
+  display_name: "Desktop Pet 动画孵化器"
+  short_description: "从参考图生成兼容 Codex v2 的完整桌面宠物动作包"
+  default_prompt: "使用 $hatch-desktop-pet 根据这张参考图生成动作完整的 desktop_pet_v2 宠物包。"

@@ -121,6 +121,7 @@ function catalogPackage(
       displayName: sourcePackage.manifest.displayName,
       description: sourcePackage.manifest.description,
       spriteVersionNumber: sourcePackage.manifest.spriteVersionNumber,
+      actionManifest: sourcePackage.actionPack?.manifest ?? null,
       source: sourcePackage.source,
       contentHash: sourcePackage.contentHash,
       active: selectionId === selectedPetId,

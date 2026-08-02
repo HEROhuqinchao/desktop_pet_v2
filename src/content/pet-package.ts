@@ -3,19 +3,31 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
 import type {
+  PetActionDefinition,
+  PetActionManifest,
+  PetBehaviorState,
   PetSource,
   PetSyncItem,
   PetSyncReport,
 } from '../shared/contracts';
+import { PET_BEHAVIOR_STATES } from '../shared/contracts';
 
 export const CELL_WIDTH = 192;
 export const CELL_HEIGHT = 208;
 export const ATLAS_WIDTH = CELL_WIDTH * 8;
 export const MAX_SPRITESHEET_BYTES = 64 * 1024 * 1024;
 export const MAX_MANIFEST_BYTES = 128 * 1024;
+export const ACTION_MANIFEST_FILE = 'desktop-pet-actions.json';
+export const MAX_ACTION_MANIFEST_BYTES = 512 * 1024;
+export const MAX_ACTION_ATLAS_BYTES = 64 * 1024 * 1024;
 
 const PET_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+const ACTION_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 const MAX_INPUT_PIXELS = ATLAS_WIDTH * CELL_HEIGHT * 11;
+const MAX_ACTION_COLUMNS = 16;
+const MAX_ACTION_ROWS = 64;
+const MAX_ACTION_INPUT_PIXELS =
+  CELL_WIDTH * CELL_HEIGHT * MAX_ACTION_COLUMNS * MAX_ACTION_ROWS;
 
 export interface PetManifest {
   id: string;
@@ -29,8 +41,15 @@ export interface PetPackage {
   directory: string;
   manifest: PetManifest;
   spritesheet: string;
+  actionPack: PetActionPack | null;
   contentHash: string;
   source: PetSource;
+}
+
+export interface PetActionPack {
+  manifestPath: string;
+  manifest: PetActionManifest;
+  atlas: string;
 }
 
 export class PetPackageError extends Error {
@@ -103,14 +122,26 @@ export class PetPackageValidator {
       throw new PetPackageError(`图集无法读取：${errorMessage(error)}`);
     }
     await validateSpritesheet(imageBytes, manifest.spriteVersionNumber);
+    const validatedActionPack = await validateActionPack(root);
 
     const digest = crypto.createHash('sha256');
     digest.update(manifestBytes);
     digest.update(imageBytes);
+    if (validatedActionPack) {
+      digest.update(validatedActionPack.manifestBytes);
+      digest.update(validatedActionPack.atlasBytes);
+    }
     return {
       directory: root,
       manifest,
       spritesheet,
+      actionPack: validatedActionPack
+        ? {
+            manifestPath: validatedActionPack.manifestPath,
+            manifest: validatedActionPack.manifest,
+            atlas: validatedActionPack.atlas,
+          }
+        : null,
       contentHash: digest.digest('hex'),
       source,
     };
@@ -137,6 +168,74 @@ export class PetPackageValidator {
     }
     return false;
   }
+}
+
+interface ValidatedActionPack extends PetActionPack {
+  manifestBytes: Buffer;
+  atlasBytes: Buffer;
+}
+
+export async function validateActionPack(
+  root: string,
+): Promise<ValidatedActionPack | null> {
+  const manifestPath = path.join(root, ACTION_MANIFEST_FILE);
+  let manifestStats: Awaited<ReturnType<typeof fs.lstat>>;
+  try {
+    manifestStats = await fs.lstat(manifestPath);
+  } catch {
+    return null;
+  }
+  if (!manifestStats.isFile() || manifestStats.isSymbolicLink()) {
+    throw new PetPackageError(
+      `${ACTION_MANIFEST_FILE} 必须是普通文件`,
+    );
+  }
+  if (manifestStats.size > MAX_ACTION_MANIFEST_BYTES) {
+    throw new PetPackageError(
+      `${ACTION_MANIFEST_FILE} 超过 512 KB 限制`,
+    );
+  }
+
+  let manifestBytes: Buffer;
+  let payload: unknown;
+  try {
+    manifestBytes = await fs.readFile(manifestPath);
+    payload = JSON.parse(manifestBytes.toString('utf8'));
+  } catch (error) {
+    throw new PetPackageError(
+      `${ACTION_MANIFEST_FILE} 无法读取：${errorMessage(error)}`,
+    );
+  }
+  const manifest = parseActionManifest(payload);
+  const atlas = path.join(root, manifest.atlasPath);
+  const atlasStats = await safeLstat(
+    atlas,
+    '扩展动作 atlasPath 必须指向普通图片文件',
+  );
+  if (!atlasStats.isFile() || atlasStats.isSymbolicLink()) {
+    throw new PetPackageError(
+      '扩展动作 atlasPath 必须指向普通图片文件',
+    );
+  }
+  if (atlasStats.size > MAX_ACTION_ATLAS_BYTES) {
+    throw new PetPackageError('扩展动作图集超过 64 MB 限制');
+  }
+  let atlasBytes: Buffer;
+  try {
+    atlasBytes = await fs.readFile(atlas);
+  } catch (error) {
+    throw new PetPackageError(
+      `扩展动作图集无法读取：${errorMessage(error)}`,
+    );
+  }
+  await validateActionAtlas(atlasBytes, manifest);
+  return {
+    manifestPath,
+    manifest,
+    manifestBytes,
+    atlas,
+    atlasBytes,
+  };
 }
 
 export function emptySyncReport(): PetSyncReport {
@@ -219,6 +318,250 @@ function parseManifest(payload: unknown): PetManifest {
     spriteVersionNumber: source.spriteVersionNumber,
     spritesheetPath,
   };
+}
+
+function parseActionManifest(payload: unknown): PetActionManifest {
+  const source = objectValue(
+    payload,
+    `${ACTION_MANIFEST_FILE} 顶层必须是对象`,
+  );
+  if (source.formatVersion !== 1) {
+    throw new PetPackageError('扩展动作 formatVersion 只支持 1');
+  }
+  if (
+    source.cellWidth !== CELL_WIDTH
+    || source.cellHeight !== CELL_HEIGHT
+  ) {
+    throw new PetPackageError(
+      `扩展动作单元格尺寸必须为 ${CELL_WIDTH}x${CELL_HEIGHT}`,
+    );
+  }
+  const atlasPath = plainFileName(
+    source.atlasPath,
+    '扩展动作 atlasPath',
+    ['.png', '.webp'],
+  );
+  if (atlasPath === ACTION_MANIFEST_FILE) {
+    throw new PetPackageError('扩展动作 atlasPath 不能指向清单本身');
+  }
+  const columns = boundedInteger(
+    source.columns,
+    '扩展动作 columns',
+    1,
+    MAX_ACTION_COLUMNS,
+  );
+  const rows = boundedInteger(
+    source.rows,
+    '扩展动作 rows',
+    1,
+    MAX_ACTION_ROWS,
+  );
+
+  const animationSource = objectValue(
+    source.animations,
+    '扩展动作 animations 必须是对象',
+  );
+  const animationEntries = Object.entries(animationSource);
+  if (animationEntries.length === 0) {
+    throw new PetPackageError('扩展动作 animations 不能为空');
+  }
+  const animations: Record<string, PetActionDefinition> = {};
+  for (const [name, rawDefinition] of animationEntries) {
+    if (!ACTION_ID_PATTERN.test(name)) {
+      throw new PetPackageError(
+        `扩展动作名称 ${name} 只能使用小写字母、数字和连字符`,
+      );
+    }
+    const definition = objectValue(
+      rawDefinition,
+      `扩展动作 ${name} 必须是对象`,
+    );
+    if (typeof definition.loop !== 'boolean') {
+      throw new PetPackageError(`扩展动作 ${name}.loop 必须是布尔值`);
+    }
+    if (!Array.isArray(definition.frames)) {
+      throw new PetPackageError(`扩展动作 ${name}.frames 必须是数组`);
+    }
+    if (definition.frames.length < 1 || definition.frames.length > 64) {
+      throw new PetPackageError(
+        `扩展动作 ${name}.frames 数量必须为 1-64`,
+      );
+    }
+    const frames = definition.frames.map((rawFrame, index) => {
+      const frame = objectValue(
+        rawFrame,
+        `扩展动作 ${name}.frames[${index}] 必须是对象`,
+      );
+      return {
+        row: boundedInteger(
+          frame.row,
+          `扩展动作 ${name}.frames[${index}].row`,
+          0,
+          rows - 1,
+        ),
+        column: boundedInteger(
+          frame.column,
+          `扩展动作 ${name}.frames[${index}].column`,
+          0,
+          columns - 1,
+        ),
+        durationMs: boundedInteger(
+          frame.durationMs,
+          `扩展动作 ${name}.frames[${index}].durationMs`,
+          16,
+          10_000,
+        ),
+      };
+    });
+    animations[name] = { loop: definition.loop, frames };
+  }
+
+  const rawStateMap = objectValue(
+    source.stateMap,
+    '扩展动作 stateMap 必须是对象',
+  );
+  const stateMap: Partial<Record<PetBehaviorState, string>> = {};
+  for (const [state, rawAction] of Object.entries(rawStateMap)) {
+    if (!PET_BEHAVIOR_STATES.includes(state as PetBehaviorState)) {
+      throw new PetPackageError(`扩展动作 stateMap 包含未知状态 ${state}`);
+    }
+    if (typeof rawAction !== 'string' || !animations[rawAction]) {
+      throw new PetPackageError(
+        `扩展动作 stateMap.${state} 必须引用已定义动作`,
+      );
+    }
+    stateMap[state as PetBehaviorState] = rawAction;
+  }
+
+  return {
+    formatVersion: 1,
+    cellWidth: CELL_WIDTH,
+    cellHeight: CELL_HEIGHT,
+    atlasPath,
+    columns,
+    rows,
+    animations,
+    stateMap,
+  };
+}
+
+async function validateActionAtlas(
+  imageBytes: Buffer,
+  manifest: PetActionManifest,
+): Promise<void> {
+  try {
+    const image = sharp(imageBytes, {
+      failOn: 'error',
+      limitInputPixels: MAX_ACTION_INPUT_PIXELS,
+    });
+    const metadata = await image.metadata();
+    if (!metadata.format || !['png', 'webp'].includes(metadata.format)) {
+      throw new PetPackageError(
+        '扩展动作图集不是可解码的 PNG 或 WebP',
+      );
+    }
+    const expectedWidth = manifest.columns * CELL_WIDTH;
+    const expectedHeight = manifest.rows * CELL_HEIGHT;
+    if (
+      metadata.width !== expectedWidth
+      || metadata.height !== expectedHeight
+    ) {
+      throw new PetPackageError(
+        `扩展动作图集尺寸应为 ${expectedWidth}x${expectedHeight}，实际为 `
+        + `${metadata.width ?? 0}x${metadata.height ?? 0}`,
+      );
+    }
+    const { data, info } = await image
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const usedCells = new Set(
+      Object.values(manifest.animations).flatMap((definition) =>
+        definition.frames.map((frame) => `${frame.row}:${frame.column}`),
+      ),
+    );
+    for (let row = 0; row < manifest.rows; row += 1) {
+      for (let column = 0; column < manifest.columns; column += 1) {
+        const visible = cellHasVisiblePixel(
+          data,
+          info.width,
+          info.channels,
+          row,
+          column,
+        );
+        const used = usedCells.has(`${row}:${column}`);
+        if (used && !visible) {
+          throw new PetPackageError(
+            `扩展动作必需单元格 row=${row}, col=${column} 为空`,
+          );
+        }
+        if (!used && visible) {
+          throw new PetPackageError(
+            `扩展动作未使用单元格 row=${row}, col=${column} 必须全透明`,
+          );
+        }
+      }
+    }
+  } catch (error) {
+    if (error instanceof PetPackageError) {
+      throw error;
+    }
+    throw new PetPackageError(
+      `扩展动作图集无法读取：${errorMessage(error)}`,
+    );
+  }
+}
+
+function objectValue(
+  value: unknown,
+  message: string,
+): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new PetPackageError(message);
+  }
+  return value as Record<string, unknown>;
+}
+
+function boundedInteger(
+  value: unknown,
+  name: string,
+  minimum: number,
+  maximum: number,
+): number {
+  if (
+    typeof value !== 'number'
+    || !Number.isInteger(value)
+    || value < minimum
+    || value > maximum
+  ) {
+    throw new PetPackageError(`${name} 必须是 ${minimum}-${maximum} 的整数`);
+  }
+  return value;
+}
+
+function plainFileName(
+  value: unknown,
+  name: string,
+  extensions: readonly string[],
+): string {
+  if (typeof value !== 'string') {
+    throw new PetPackageError(`${name} 必须是字符串`);
+  }
+  const normalized = value.trim();
+  if (
+    !normalized
+    || path.basename(normalized) !== normalized
+    || normalized.includes('/')
+    || normalized.includes('\\')
+  ) {
+    throw new PetPackageError(`${name} 必须是目录内的单个文件名`);
+  }
+  if (!extensions.includes(path.extname(normalized).toLowerCase())) {
+    throw new PetPackageError(
+      `${name} 只支持 ${extensions.join(' 或 ')}`,
+    );
+  }
+  return normalized;
 }
 
 async function validateSpritesheet(

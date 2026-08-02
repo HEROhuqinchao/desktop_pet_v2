@@ -75,6 +75,31 @@ describe('PetPackageValidator', () => {
       new PetPackageValidator().validateDirectory(packageRoot),
     ).rejects.toThrow('必须全透明');
   });
+
+  it('accepts a compatible desktop_pet_v2 action sidecar', async () => {
+    const root = await temporaryDirectory();
+    const packageRoot = path.join(root, 'actions');
+    await createPackage(packageRoot, 2, 'actions');
+    await createActionPack(packageRoot);
+
+    const sourcePackage = await new PetPackageValidator().validateDirectory(
+      packageRoot,
+    );
+
+    expect(sourcePackage.actionPack?.manifest.stateMap.SLEEP).toBe('sleep');
+    expect(sourcePackage.actionPack?.manifest.animations.eat?.frames).toHaveLength(2);
+  });
+
+  it('rejects visible pixels in unused action cells', async () => {
+    const root = await temporaryDirectory();
+    const packageRoot = path.join(root, 'bad-actions');
+    await createPackage(packageRoot, 2, 'bad-actions');
+    await createActionPack(packageRoot, true);
+
+    await expect(
+      new PetPackageValidator().validateDirectory(packageRoot),
+    ).rejects.toThrow('扩展动作未使用单元格');
+  });
 });
 
 describe('PetLibrary and PetCatalog', () => {
@@ -141,6 +166,29 @@ describe('PetLibrary and PetCatalog', () => {
       fs.access(path.join(root, 'library', 'other')),
     ).rejects.toThrow();
   });
+
+  it('copies action sidecars and exposes their state map', async () => {
+    const root = await temporaryDirectory();
+    const source = path.join(root, 'source-actions');
+    await createPackage(source, 2, 'source-actions');
+    await createActionPack(source);
+    const library = new PetLibrary(path.join(root, 'library'));
+
+    const imported = await library.importFolder(source);
+    const catalog = new PetCatalog(path.join(root, 'bundled'), library);
+    const entries = await catalog.listPackages('codex:source-actions');
+
+    expect(imported.actionPack?.manifest.atlasPath).toBe('actions.png');
+    expect(entries[0]?.entry.actionManifest?.stateMap.EAT).toBe('eat');
+    expect(
+      await fs.readdir(path.join(root, 'library', 'source-actions')),
+    ).toEqual(expect.arrayContaining([
+      'actions.png',
+      'desktop-pet-actions.json',
+      'pet.json',
+      'spritesheet.png',
+    ]));
+  });
 });
 
 async function temporaryDirectory(): Promise<string> {
@@ -188,6 +236,70 @@ async function createPackage(
       description: '测试宠物',
       spriteVersionNumber: version,
       spritesheetPath: 'spritesheet.png',
+    }),
+    'utf8',
+  );
+}
+
+async function createActionPack(
+  root: string,
+  addUnusedPixel = false,
+): Promise<void> {
+  const columns = addUnusedPixel ? 3 : 2;
+  const width = CELL_WIDTH * columns;
+  const height = CELL_HEIGHT;
+  const pixels = Buffer.alloc(width * height * 4);
+  setPixel(
+    pixels,
+    width,
+    Math.floor(CELL_WIDTH / 2),
+    Math.floor(CELL_HEIGHT / 2),
+  );
+  setPixel(
+    pixels,
+    width,
+    CELL_WIDTH + Math.floor(CELL_WIDTH / 2),
+    Math.floor(CELL_HEIGHT / 2),
+  );
+  if (addUnusedPixel) {
+    setPixel(
+      pixels,
+      width,
+      CELL_WIDTH * 2 + Math.floor(CELL_WIDTH / 2),
+      Math.floor(CELL_HEIGHT / 2),
+    );
+  }
+  await sharp(pixels, {
+    raw: { width, height, channels: 4 },
+  })
+    .png({ compressionLevel: 0 })
+    .toFile(path.join(root, 'actions.png'));
+  await fs.writeFile(
+    path.join(root, 'desktop-pet-actions.json'),
+    JSON.stringify({
+      formatVersion: 1,
+      cellWidth: CELL_WIDTH,
+      cellHeight: CELL_HEIGHT,
+      atlasPath: 'actions.png',
+      columns,
+      rows: 1,
+      animations: {
+        sleep: {
+          loop: true,
+          frames: [{ row: 0, column: 0, durationMs: 180 }],
+        },
+        eat: {
+          loop: false,
+          frames: [
+            { row: 0, column: 0, durationMs: 100 },
+            { row: 0, column: 1, durationMs: 140 },
+          ],
+        },
+      },
+      stateMap: {
+        SLEEP: 'sleep',
+        EAT: 'eat',
+      },
     }),
     'utf8',
   );

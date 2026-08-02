@@ -15,6 +15,7 @@ export interface OverlayDrawState {
   phaseSeconds: number;
   overlay: PetOverlayState;
   desktopEffects: boolean;
+  customActionVisuals?: boolean;
 }
 
 export function drawPetOverlays(
@@ -39,7 +40,9 @@ function drawStateEffects(
 ): void {
   const phase = state.phaseSeconds;
   const behavior = state.behaviorState;
-  if (behavior === 'SLEEP') {
+  if (state.customActionVisuals) {
+    // 扩展动作帧已经包含状态姿势与随身道具，只保留持续状态覆盖物。
+  } else if (behavior === 'SLEEP') {
     const offset = Math.floor(phase * 18) % 16;
     context.fillStyle = '#6D75B8';
     context.font = 'bold 16px sans-serif';
