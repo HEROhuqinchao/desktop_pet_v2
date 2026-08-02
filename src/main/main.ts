@@ -225,8 +225,10 @@ let currentMotion: MotionState = {
   velocityX: 0,
   velocityY: 0,
   lookFrame: null,
+  animationCue: null,
   overlay: createOverlay(),
 };
+let animationCueSequence = 0;
 let currentSettings: PetSettings = { ...DEFAULT_PET_SETTINGS };
 let currentPosition: PetPosition = { ...DEFAULT_PET_POSITION };
 
@@ -307,15 +309,20 @@ async function initializePetContent(): Promise<void> {
   await refreshPetCatalog();
   await protocol.handle('pet-asset', async (request) => {
     const url = new URL(request.url);
+    const assetPath =
+      url.pathname === '/spritesheet'
+        ? activePetPackage?.spritesheet
+        : url.pathname === '/actions'
+          ? activePetPackage?.actionPack?.atlas
+          : null;
     if (
       url.host !== 'current'
-      || url.pathname !== '/spritesheet'
-      || !activePetPackage
+      || !assetPath
     ) {
       return new Response('Not found', { status: 404 });
     }
     const upstream = await net.fetch(
-      pathToFileURL(activePetPackage.spritesheet).toString(),
+      pathToFileURL(assetPath).toString(),
     );
     // 附带 CORS 头，渲染侧以 crossOrigin='anonymous' 加载后
     // Canvas getImageData 才不会因跨域被污染（命中检测依赖它）。
@@ -645,6 +652,7 @@ function assistantTick(): void {
       );
       if (!dragTimer && !physicsTimer) {
         setBehaviorState('HAPPY', true);
+        triggerAnimationCue('focus-complete');
       }
       setTemporaryEmotion('happy', 4);
       say('happy', '专注完成啦，休息一下吧！', { emotion: 'happy' });
@@ -737,6 +745,7 @@ function deliverDueReminders(): void {
   reminderEngine.markDelivered(reminder.reminderId);
   if (!dragTimer && !physicsTimer) {
     setBehaviorState('SPECIAL_EVENT', true);
+    triggerAnimationCue('reminder');
   }
   broadcastReminderDashboard();
 }
@@ -966,6 +975,16 @@ function sendCurrentMotion(patch: Partial<MotionState> = {}): void {
   });
 }
 
+function triggerAnimationCue(action: string): void {
+  animationCueSequence += 1;
+  sendCurrentMotion({
+    animationCue: {
+      id: animationCueSequence,
+      action,
+    },
+  });
+}
+
 function setBehaviorState(
   target: PetBehaviorState,
   force = false,
@@ -1004,6 +1023,7 @@ function setBehaviorState(
       target === 'IDLE' || target === 'LOOK_AT_CURSOR'
         ? currentMotion.lookFrame
         : null,
+    animationCue: null,
   });
   updateTrayMenu();
   return true;
@@ -1293,6 +1313,7 @@ function startSpecialEvent(
     petWindow.setPosition(display.workArea.x, bounds.y, false);
   }
   setBehaviorState('SPECIAL_EVENT', true);
+  triggerAnimationCue(`event-${event.eventId.replaceAll('_', '-')}`);
   const message =
     options.message
     ?? EVENT_MESSAGES[event.eventId]
@@ -1437,6 +1458,7 @@ function handleSingleClick(relativeY: number): boolean {
   } else {
     assistantDatabase.applyPettingGain(repeated);
     setBehaviorState('HAPPY', true);
+    triggerAnimationCue('petting');
     const category = relativeY < 0.62 ? 'happy' : 'clicked';
     const fallback =
       repeated >= 3
@@ -1477,6 +1499,7 @@ function petAction() {
   assistantDatabase.applyPettingGain(1);
   recordInteraction();
   setBehaviorState('HAPPY', true);
+  triggerAnimationCue('petting');
   say('happy', '嗯，就是那里，再轻一点。', { emotion: 'happy' });
   return { ok: true, message: '已摸摸' };
 }
@@ -1507,9 +1530,11 @@ function handleWheel(deltaY: number): boolean {
   if (deltaY < 0) {
     assistantDatabase.applyPettingGain(1);
     setBehaviorState('HAPPY', true);
+    triggerAnimationCue('groom');
     say('happy', '头顶顺毛完成，蓬松度加一。', { emotion: 'happy' });
   } else {
     setBehaviorState('CURIOUS', true);
+    triggerAnimationCue('tickle');
     say('clicked', '挠痒模式？这个角度很专业。');
   }
   return true;
@@ -1785,6 +1810,43 @@ function ensurePetVisible(): void {
 function applyAlwaysOnTop(): void {
   petWindow?.setAlwaysOnTop(currentSettings.alwaysOnTop);
   speechBubble?.setAlwaysOnTop(currentSettings.alwaysOnTop);
+}
+
+function applyAppIcon(): void {
+  try {
+    const iconKey = currentSettings.appIcon ?? 'icon3';
+    let iconPath: string;
+    if (iconKey === 'icon1') {
+      iconPath = path.join(__dirname, '../renderer/icons/app_icon_1.png');
+    } else if (iconKey === 'icon2') {
+      iconPath = path.join(__dirname, '../renderer/icons/app_icon_2.png');
+    } else if (iconKey === 'pet') {
+      iconPath = path.join(__dirname, '../renderer/public/pets/tudou/spritesheet.webp');
+    } else {
+      iconPath = path.join(__dirname, '../renderer/icons/app_icon_3.png');
+    }
+
+    if (!fs.existsSync(iconPath)) {
+      iconPath = path.join(__dirname, '../renderer/public/icons/app_icon_3.png');
+    }
+    if (!fs.existsSync(iconPath)) {
+      iconPath = path.join(__dirname, '../../build/icon.png');
+    }
+
+    if (fs.existsSync(iconPath)) {
+      const img = nativeImage.createFromPath(iconPath);
+      if (process.platform === 'darwin' && app.dock) {
+        app.dock.setIcon(img);
+      }
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) {
+          win.setIcon(img);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to apply app icon:', err);
+  }
 }
 
 function applyPetScale(): void {
@@ -2702,6 +2764,9 @@ function registerIpcHandlers(): void {
       };
       if (currentSettings.scale !== previous.scale) {
         applyPetScale();
+      }
+      if (currentSettings.appIcon !== previous.appIcon) {
+        applyAppIcon();
       }
       if (currentSettings.launchAtStartup !== previous.launchAtStartup) {
         const applied = await setLaunchAtStartup(
@@ -3725,6 +3790,7 @@ function registerIpcHandlers(): void {
       const completion = assistantDatabase.recordGameResult(result);
       if (result.finishReason === 'completed') {
         soundSystem?.play('game_score');
+        triggerAnimationCue('game-celebrate');
         setTemporaryEmotion('happy', 4);
         say(
           'happy',
@@ -3732,6 +3798,7 @@ function registerIpcHandlers(): void {
           { emotion: 'happy' },
         );
       } else {
+        triggerAnimationCue('game-finished');
         say('idle', '小游戏先存档，下次继续挑战。');
       }
       broadcastGameRecords();
@@ -3929,6 +3996,7 @@ if (!hasSingleInstanceLock) {
     updateNightMode();
     petWindow = createPetWindow();
     createTray();
+    applyAppIcon();
     startBehaviorLoop();
     startAssistantLoop();
     // 节日彩蛋，对应基准 start()（欢迎语已移至窗口显示后）。

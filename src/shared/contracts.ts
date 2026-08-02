@@ -38,12 +38,44 @@ export const PET_BEHAVIOR_STATES = [
 
 export type PetBehaviorState = (typeof PET_BEHAVIOR_STATES)[number];
 
+export interface PetAnimationCue {
+  id: number;
+  action: string;
+}
+
+export interface PetActionFrame {
+  row: number;
+  column: number;
+  durationMs: number;
+}
+
+export interface PetActionDefinition {
+  loop: boolean;
+  frames: PetActionFrame[];
+}
+
+/**
+ * desktop_pet_v2 的可选扩展动作清单。基础 spritesheet 仍保持 Codex v1/v2
+ * 契约；该清单只描述项目专属动作旁车，缺失时运行时自动回退到基础图集。
+ */
+export interface PetActionManifest {
+  formatVersion: 1;
+  cellWidth: typeof PET_CELL_WIDTH;
+  cellHeight: typeof PET_CELL_HEIGHT;
+  atlasPath: string;
+  columns: number;
+  rows: number;
+  animations: Record<string, PetActionDefinition>;
+  stateMap: Partial<Record<PetBehaviorState, string>>;
+}
+
 export interface MotionState {
   phase: MotionPhase;
   behaviorState: PetBehaviorState;
   velocityX: number;
   velocityY: number;
   lookFrame: number | null;
+  animationCue?: PetAnimationCue | null;
   overlay: PetOverlayState;
 }
 
@@ -92,6 +124,7 @@ export interface PetSettings {
   preferredScreen: string;
   personalityId: string;
   anonymousAnalytics: boolean;
+  appIcon?: 'icon1' | 'icon2' | 'icon3' | 'pet';
 }
 
 export interface PetPosition {
@@ -121,6 +154,7 @@ export interface PetCatalogEntry {
   displayName: string;
   description: string;
   spriteVersionNumber: 1 | 2;
+  actionManifest: PetActionManifest | null;
   source: PetSource;
   contentHash: string;
   active: boolean;

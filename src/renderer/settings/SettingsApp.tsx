@@ -198,6 +198,32 @@ export function SettingsApp() {
             </section>
 
             <section className="settings-card">
+              <h2 className="card-title">应用图标设置</h2>
+              <p className="card-hint">选择您喜欢的应用桌面/Dock图标（默认：方案三）</p>
+              <div className="icon-selector-grid">
+                {[
+                  { id: 'icon3', name: '方案三：Dock猫咪', src: '/icons/app_icon_3.png', isDefault: true },
+                  { id: 'icon1', name: '方案一：显示器猫', src: '/icons/app_icon_1.png' },
+                  { id: 'icon2', name: '方案二：窗口招手猫', src: '/icons/app_icon_2.png' },
+                  { id: 'pet', name: '当前宠物头像', src: 'pet-asset://current/spritesheet' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`icon-option-card ${(settings.appIcon ?? 'icon3') === item.id ? 'selected' : ''}`}
+                    onClick={() => patchSettings({ appIcon: item.id as 'icon1' | 'icon2' | 'icon3' | 'pet' })}
+                  >
+                    <div className="icon-preview-box">
+                      <img src={item.src} alt={item.name} />
+                    </div>
+                    <span className="icon-option-name">{item.name}</span>
+                    {item.isDefault ? <span className="icon-default-badge">默认</span> : null}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="settings-card">
               <h2 className="card-title">声音与调整参数</h2>
               <div className="card-form">
                 {renderToggle('开启音效', settings.soundEnabled, (c) =>

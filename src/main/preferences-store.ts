@@ -36,6 +36,7 @@ export const DEFAULT_PET_SETTINGS: Readonly<PetSettings> = {
   preferredScreen: '',
   personalityId: 'lime',
   anonymousAnalytics: false,
+  appIcon: 'icon3',
 };
 
 export const DEFAULT_PET_POSITION: Readonly<PetPosition> = {
@@ -149,6 +150,9 @@ export function normalizeSettings(
         ? base.personalityId.trim().slice(0, 50)
         : 'lime',
     anonymousAnalytics: booleanValue(base.anonymousAnalytics, false),
+    appIcon: ['icon1', 'icon2', 'icon3', 'pet'].includes(String(base.appIcon))
+      ? (base.appIcon as 'icon1' | 'icon2' | 'icon3' | 'pet')
+      : 'icon3',
   };
 }
 
