@@ -59,6 +59,7 @@ portable:
 linux:
   icon: build/icon.png
   category: Utility
+  maintainer: "husu <616592062hqc@gmail.com>"
   artifactName: "DesktopPet-${version}-Linux-${arch}.${ext}"
   target:
     - AppImage

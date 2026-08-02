@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { selectPackagedNativeModule } from './select-packaged-native.mjs';
 
 const executable = path.resolve(process.argv[2] ?? '');
 const resources = path.resolve(process.argv[3] ?? '');
@@ -38,8 +39,18 @@ for (const fileName of runtimeDataFiles) {
 }
 
 const nativeFiles = walkFiles(resources).filter((filePath) => filePath.endsWith('.node'));
-const sqlite = findOne(nativeFiles, (filePath) => filePath.includes('better-sqlite3'));
-const keyring = findOne(nativeFiles, (filePath) => filePath.includes('keyring'));
+const sqlite = selectPackagedNativeModule(
+  nativeFiles,
+  'better-sqlite3',
+  process.platform,
+  process.arch,
+);
+const keyring = selectPackagedNativeModule(
+  nativeFiles,
+  'keyring',
+  process.platform,
+  process.arch,
+);
 const program = [
   "const fs = require('node:fs');",
   "const path = require('node:path');",
@@ -84,10 +95,4 @@ function walkFiles(root) {
     else if (entry.isFile()) files.push(target);
   }
   return files;
-}
-
-function findOne(files, predicate) {
-  const matches = files.filter(predicate);
-  if (matches.length === 0) throw new Error('打包产物缺少必需原生模块');
-  return matches[0];
 }

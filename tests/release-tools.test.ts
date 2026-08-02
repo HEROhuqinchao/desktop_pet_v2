@@ -2,10 +2,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const releaseScript = path.join(projectRoot, 'scripts', 'release.mjs');
+const nativeSelectorScript = path.join(
+  projectRoot,
+  'scripts',
+  'select-packaged-native.mjs',
+);
 const temporaryDirectories: string[] = [];
 
 afterEach(() => {
@@ -100,6 +106,42 @@ describe('发布工具', () => {
   });
 });
 
+describe('打包原生模块选择', () => {
+  it('Windows 只选择当前平台架构的预构建文件', () => {
+    const files = [
+      'resources/node_modules/better-sqlite3/prebuilds/darwin-arm64.node',
+      'resources/node_modules/better-sqlite3/prebuilds/linux-x64.node',
+      'resources/node_modules/better-sqlite3/prebuilds/win32-x64.node',
+    ];
+
+    expect(runNativeSelector(files, 'better-sqlite3', 'win32', 'x64')).toBe(
+      files[2],
+    );
+  });
+
+  it('Linux 优先选择 GNU Keyring 文件', () => {
+    const files = [
+      'resources/node_modules/@napi-rs/keyring-linux-x64-musl/keyring.linux-x64-musl.node',
+      'resources/node_modules/@napi-rs/keyring-linux-x64-gnu/keyring.linux-x64-gnu.node',
+    ];
+
+    expect(runNativeSelector(files, 'keyring', 'linux', 'x64')).toBe(files[1]);
+  });
+
+  it('优先选择 electron-builder 在当前 runner 重建的文件', () => {
+    const rebuilt = 'resources/node_modules/better-sqlite3/build/Release/better_sqlite3.node';
+    const files = [
+      'resources/node_modules/better-sqlite3/prebuilds/darwin-arm64.node',
+      rebuilt,
+      'resources/node_modules/better-sqlite3/prebuilds/win32-x64.node',
+    ];
+
+    expect(runNativeSelector(files, 'better-sqlite3', 'win32', 'x64')).toBe(
+      rebuilt,
+    );
+  });
+});
+
 function runRelease(arguments_: string[]) {
   return spawnSync(process.execPath, [releaseScript, ...arguments_], {
     cwd: projectRoot,
@@ -109,6 +151,31 @@ function runRelease(arguments_: string[]) {
       GITHUB_SHA: '0123456789abcdef0123456789abcdef01234567',
     },
   });
+}
+
+function runNativeSelector(
+  files: string[],
+  moduleName: string,
+  platform: string,
+  arch: string,
+) {
+  const program = [
+    `import { selectPackagedNativeModule } from ${JSON.stringify(pathToFileURL(nativeSelectorScript).href)};`,
+    'const [files, moduleName, platform, arch] = JSON.parse(process.argv[1]);',
+    'process.stdout.write(selectPackagedNativeModule(files, moduleName, platform, arch));',
+  ].join('\n');
+  const result = spawnSync(
+    process.execPath,
+    ['--input-type=module', '-e', program, JSON.stringify([
+      files,
+      moduleName,
+      platform,
+      arch,
+    ])],
+    { encoding: 'utf8' },
+  );
+  if (result.status !== 0) throw new Error(result.stderr);
+  return result.stdout;
 }
 
 function createTemporaryDirectory(): string {
