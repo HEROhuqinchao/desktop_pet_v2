@@ -46,7 +46,7 @@
 - [x] 确认新增资源进入目录包，并执行 5 个 renderer、8 个 data 文件与 `better-sqlite3`/keyring ABI 校验。
 - [x] 完成两个 GitHub Actions YAML 的本地解析与结构审计。
 - [x] 使用 actionlint 1.7.12 校验两个工作流。
-- [ ] 在具备 Git 远程的正式提交上运行 GitHub Actions。
+- [x] 在正式远程提交上完成 GitHub Actions：三平台 `Source Checks` 与 macOS arm64 预览打包均通过。
 
 ### D. 验证与收口
 
@@ -67,12 +67,16 @@
   `docs/asset-gaps.md`。
 - Electron 与 PySide6 不共享同一套原生控件绘制器，因此可以对齐页面结构、
   尺寸、层级、字段顺序和系统深浅色，但不能用自动测试证明每个像素完全相同。
-- GitHub Actions 真实运行、macOS 正式签名/公证、Windows SignPath、
-  Windows/Linux 真机安装与卸载仍属于外部环境验收项。
+- GitHub Actions 已在提交 `55a90da` 上真实运行通过：
+  [`Source Checks`](https://github.com/HEROhuqinchao/desktop_pet_v2/actions/runs/30733253809)
+  覆盖 Linux x64、Windows x64、macOS arm64，
+  [`Build, Sign & Release`](https://github.com/HEROhuqinchao/desktop_pet_v2/actions/runs/30733337367)
+  生成 macOS arm64 unsigned 预览 Artifact 与 SPDX SBOM。
+- macOS 正式签名/公证、Windows SignPath、Windows/Linux 真机安装与卸载仍属于外部环境验收项。
 
 ## 5. 不自动判定为完成的项目
 
 - 未配置 Apple Developer ID、公证凭据时，不把 unsigned macOS 预览包称为正式发布包。
 - 未配置 SignPath 且未在 Windows 真机验收时，不把 Windows 发布称为已签名或已验证。
-- 未连接 Git 远程、没有提交或没有触发 GitHub Actions 时，不把本地 YAML 检查称为流水线真实运行成功。
+- 后续工作流调整必须在正式远程提交上再次运行；不能仅凭本地 YAML 检查判定流水线成功。
 - 缺少 `build/sounds/*.wav` 时仅验证静默降级和调用契约，素材本身保持待补齐。

@@ -114,11 +114,15 @@ node scripts/verify-packaged-native.mjs \
 
 | 平台 | 安装 | 启动/Keyring | 升级 | 卸载 | 当前状态 |
 | --- | --- | --- | --- | --- | --- |
-| macOS arm64 | unsigned DMG/ZIP 结构通过；2026-08-02 目录包复验通过 | packaged 启动、5 个 renderer、8 个 data 文件、Keyring/better-sqlite3 ABI 148 通过 | 待正式签名版 | 待正式签名版 | unsigned 预览通过 |
+| macOS arm64 | unsigned DMG/ZIP 结构通过；2026-08-02 本机目录包与 GitHub Actions 预览打包复验通过 | packaged 启动、5 个 renderer、8 个 data 文件、Keyring/better-sqlite3 ABI 148 通过 | 待正式签名版 | 待正式签名版 | unsigned 预览通过 |
 | macOS x64 | 待 GitHub runner/Intel 机器 | 待验证 | 待验证 | 待验证 | 未完成 |
 | Windows x64 | 待 SignPath 后真实机器 | 待验证 | 待验证 | 待验证 | 未完成 |
 | Linux x64 | 待 X11/Wayland 真机 | 待验证 | 手动下载 | 待验证 | 未完成 |
 | Linux arm64 | 待 arm64 runner/真机 | 待验证 | 手动下载 | 待验证 | 未完成 |
 
-当前本地仓库没有初始提交和 Git 远程，因此只能完成工作流 YAML 解析、矩阵与
-fail-closed 门禁审计，不能把本地结果表述为 GitHub Actions 已真实运行。
+正式私有仓库为 <https://github.com/HEROhuqinchao/desktop_pet_v2>。2026-08-02 已完成：
+
+- [`Source Checks`](https://github.com/HEROhuqinchao/desktop_pet_v2/actions/runs/30733253809)：Linux x64、Windows x64、macOS arm64 全部通过。
+- [`Build, Sign & Release`](https://github.com/HEROhuqinchao/desktop_pet_v2/actions/runs/30733337367)：`workflow_dispatch` 的 macOS arm64 unsigned 预览通过，生成 `distribution-darwin-arm64` 与 `release-sbom` Artifact。
+
+本次未创建 `v*` 标签，因此正式签名、公证、SignPath 和 GitHub Release 步骤按设计跳过。

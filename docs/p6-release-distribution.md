@@ -76,16 +76,16 @@ flowchart LR
   聚合和稳定版门禁。
 - 复用旧 `desktop_pet` 的 SignPath fail-closed 结构和 Linux arm64 runner。
 - 不迁移 Python/MSIX 专用打包脚本，也不迁移 CodePilot 的 Next.js server 检查。
-- 不在无 Git remote 的情况下猜测更新仓库；更新清单 URL 由用户或后续正式仓库配置。
+- 正式仓库为 `HEROhuqinchao/desktop_pet_v2`；更新清单 URL 仍需在首次稳定 Release 前明确配置。
 
 ## 当前合规矩阵
 
 | 场景 | 状态 | 证据/剩余条件 |
 | --- | --- | --- |
-| 三平台源码检查矩阵 | 实现通过 | `ci.yml` 经 actionlint 1.7.12；待首次远程运行 |
+| 三平台源码检查矩阵 | 通过 | [远程运行 30733253809](https://github.com/HEROhuqinchao/desktop_pet_v2/actions/runs/30733253809) 覆盖 Linux x64、Windows x64、macOS arm64 |
 | 标签、package、lockfile 版本一致 | 通过 | `release-tools.test.ts`、`release.mjs verify` |
 | 生产依赖树、官方源、审计、SPDX | 通过 | `npm ls` 通过，官方审计 0，SPDX 2.3/15 包 |
-| macOS arm64 DMG/ZIP | 通过（unsigned） | 本机生成两个约 145 MB 产物并生成 SHA-256 |
+| macOS arm64 DMG/ZIP | 通过（unsigned） | 本机与 [远程预览运行 30733337367](https://github.com/HEROhuqinchao/desktop_pet_v2/actions/runs/30733337367) 均通过，远程 Artifact 约 291 MB |
 | macOS x64 DMG/ZIP | 待验证 | 需要 `macos-15-intel` workflow |
 | Windows NSIS/portable | 待验证 | 需要 Windows runner 和两阶段 SignPath 项目配置 |
 | Linux x64/arm64 AppImage/DEB | 待验证 | 需要对应 GitHub runner |
@@ -98,14 +98,15 @@ flowchart LR
 
 ## 本轮验证结果
 
-- 22 个测试文件、88 个测试用例通过。
+- 23 个测试文件、109 个测试用例通过。
 - lint、TypeScript 类型检查、Vite/Electron 构建通过。
 - `npm ls --omit=dev --all` 通过；npm 官方生产依赖审计 0 个漏洞。
 - SPDX 2.3 SBOM 成功生成，包含 15 个生产包。
 - actionlint 1.7.12 与本机 YAML 解析均通过。
 - packaged Electron ABI 148 实际加载 better-sqlite3 和 Keyring 成功。
 - macOS arm64 DMG、ZIP、平台 metadata 和逐文件 SHA-256 成功生成。
+- GitHub Actions 三平台源码检查成功；macOS arm64 预览打包、原生模块验证、Artifact 与 SPDX SBOM 上传成功。
 - packaged P6 面板实际验证 unconfigured、idle、available 和恢复空配置。
 
-P6 尚未完成的原因是跨平台 runner、Apple Developer ID 和 SignPath 属于仓库外部
-状态；这些条件未满足前，任务 6.2、6.3、6.4、6.7 保持未勾选。
+P6 尚未完成的原因是 macOS x64、Windows/Linux 安装验收、Apple Developer ID
+和 SignPath 属于仓库外部状态；这些条件未满足前，相关正式发布项保持未勾选。
