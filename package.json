@@ -1,6 +1,7 @@
 {
   "name": "desktop-pet-v2",
   "version": "0.1.0",
+  "packageManager": "npm@10.9.9",
   "private": true,
   "description": "Independent cross-platform desktop pet and reminder assistant compatible with Codex pet packages.",
   "author": "husu",
