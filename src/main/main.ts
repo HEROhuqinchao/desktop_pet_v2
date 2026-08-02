@@ -142,7 +142,19 @@ protocol.registerSchemesAsPrivileged([
 
 let petWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
+let isSystemDialogOpen = false;
 let gameWindow: BrowserWindow | null = null;
+
+async function withSystemDialog<T>(action: () => Promise<T>): Promise<T> {
+  isSystemDialogOpen = true;
+  try {
+    return await action();
+  } finally {
+    setTimeout(() => {
+      isSystemDialogOpen = false;
+    }, 200);
+  }
+}
 let activeGameId: GameId | null = null;
 let activeGameDifficulty: GameDifficulty = 'standard';
 let gamePaused = false;
@@ -1875,10 +1887,10 @@ function createPetWindow(): BrowserWindow {
 
 function createSettingsWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 460,
-    height: 780,
-    minWidth: 430,
-    minHeight: 480,
+    width: 700,
+    height: 640,
+    minWidth: 600,
+    minHeight: 520,
     title: 'Desktop Pet 设置',
     show: false,
     backgroundColor: '#ececec',
@@ -1892,6 +1904,11 @@ function createSettingsWindow(): BrowserWindow {
   window.setMenuBarVisibility(false);
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => event.preventDefault());
+  window.on('blur', () => {
+    if (!window.isDestroyed() && !isSystemDialogOpen) {
+      window.close();
+    }
+  });
   void loadRenderer(window, 'settings').then(() => {
     if (!window.isDestroyed()) {
       window.show();
@@ -3479,14 +3496,16 @@ function registerIpcHandlers(): void {
     if (!assistantDatabase) {
       return { ok: false, message: '数据服务尚未初始化' };
     }
-    const result = await dialog.showSaveDialog({
-      title: '导出宠物存档',
-      defaultPath: path.join(
-        app.getPath('home'),
-        'DesktopPet-save.json',
-      ),
-      filters: [{ name: 'JSON 文件', extensions: ['json'] }],
-    });
+    const result = await withSystemDialog(() =>
+      dialog.showSaveDialog({
+        title: '导出宠物存档',
+        defaultPath: path.join(
+          app.getPath('home'),
+          'DesktopPet-save.json',
+        ),
+        filters: [{ name: 'JSON 文件', extensions: ['json'] }],
+      }),
+    );
     if (result.canceled || !result.filePath) {
       return { ok: false, message: '已取消导出' };
     }
@@ -3511,11 +3530,13 @@ function registerIpcHandlers(): void {
     if (!assistantDatabase) {
       return { ok: false, message: '数据服务尚未初始化' };
     }
-    const selected = await dialog.showOpenDialog({
-      title: '导入宠物存档',
-      properties: ['openFile'],
-      filters: [{ name: 'JSON 文件', extensions: ['json'] }],
-    });
+    const selected = await withSystemDialog(() =>
+      dialog.showOpenDialog({
+        title: '导入宠物存档',
+        properties: ['openFile'],
+        filters: [{ name: 'JSON 文件', extensions: ['json'] }],
+      }),
+    );
     const source = selected.filePaths[0];
     if (selected.canceled || !source) {
       return { ok: false, message: '已取消导入' };
