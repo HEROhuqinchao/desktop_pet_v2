@@ -12,6 +12,13 @@ const nativeSelectorScript = path.join(
   'scripts',
   'select-packaged-native.mjs',
 );
+const builderConfigPath = path.join(projectRoot, 'electron-builder.yml');
+const packageWorkflowPath = path.join(
+  projectRoot,
+  '.github',
+  'workflows',
+  'package.yml',
+);
 const temporaryDirectories: string[] = [];
 
 afterEach(() => {
@@ -107,6 +114,14 @@ describe('发布工具', () => {
 });
 
 describe('打包原生模块选择', () => {
+  it('Linux 校验使用构建配置中固定的主程序名', () => {
+    const builderConfig = fs.readFileSync(builderConfigPath, 'utf8');
+    const packageWorkflow = fs.readFileSync(packageWorkflowPath, 'utf8');
+
+    expect(builderConfig).toContain('executableName: desktop-pet-v2');
+    expect(packageWorkflow).toContain('BIN="$ROOT/desktop-pet-v2"');
+  });
+
   it('Windows 只选择当前平台架构的预构建文件', () => {
     const files = [
       'resources/node_modules/better-sqlite3/prebuilds/darwin-arm64.node',
