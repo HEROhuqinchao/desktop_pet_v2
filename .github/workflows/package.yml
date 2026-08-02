@@ -498,13 +498,22 @@ jobs:
           if ($null -eq $makeAppx) { throw "Windows SDK makeappx.exe 不存在" }
 
           $inspectionDirectory = "release\store-inspection"
-          & $makeAppx.FullName unpack /p $packages[0].FullName /d $inspectionDirectory /o
+          & $makeAppx.FullName unpack /p $packages[0].FullName /d $inspectionDirectory /o | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "无法解包 Microsoft Store AppX" }
 
           [xml]$manifest = Get-Content "$inspectionDirectory\AppxManifest.xml" -Raw
-          $actualIdentityName = $manifest.Package.Identity.GetAttribute("Name")
-          $actualPublisher = $manifest.Package.Identity.GetAttribute("Publisher")
-          $actualPublisherDisplayName = $manifest.Package.Properties.PublisherDisplayName.InnerText
+          $identityNode = $manifest.SelectSingleNode(
+            "/*[local-name()='Package']/*[local-name()='Identity']"
+          )
+          $publisherDisplayNameNode = $manifest.SelectSingleNode(
+            "/*[local-name()='Package']/*[local-name()='Properties']/*[local-name()='PublisherDisplayName']"
+          )
+          if ($null -eq $identityNode -or $null -eq $publisherDisplayNameNode) {
+            throw "AppxManifest.xml 缺少 Microsoft Store 身份节点"
+          }
+          $actualIdentityName = $identityNode.GetAttribute("Name")
+          $actualPublisher = $identityNode.GetAttribute("Publisher")
+          $actualPublisherDisplayName = $publisherDisplayNameNode.InnerText
           if ($actualIdentityName -ne $env:EXPECTED_STORE_IDENTITY_NAME) {
             throw "AppX Identity Name 不匹配：$actualIdentityName"
           }
