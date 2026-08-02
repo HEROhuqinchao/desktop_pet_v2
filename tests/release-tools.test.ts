@@ -230,10 +230,18 @@ describe('Microsoft Store 打包配置', () => {
     expect(builderConfig).toContain(
       'artifactName: "DesktopPet-${version}-Windows-${arch}-Store.${ext}"',
     );
+    expect(builderConfig).toContain('displayName: DeskTato');
+    expect(builderConfig).toContain('identityName: husu.DeskTato');
+    expect(builderConfig).toContain(
+      'publisher: CN=6E0F686D-434E-4F6F-A421-03253B68F46A',
+    );
+    expect(builderConfig).toContain('publisherDisplayName: husu');
     expect(builderConfig).toContain('capabilities:\n    - runFullTrust');
     expect(packageWorkflow).toContain('windows-store-x64');
     expect(packageWorkflow).toContain('distribution-win32-store-x64');
     expect(packageWorkflow).toContain('--platform win32-store --arch x64');
+    expect(packageWorkflow).toContain('Verify Microsoft Store package identity');
+    expect(packageWorkflow).toContain('AppX Identity Name 不匹配');
   });
 });
 

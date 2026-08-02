@@ -474,11 +474,47 @@ jobs:
             $builderArgs += "-c.appx.publisher=$env:MS_STORE_PUBLISHER"
             $builderArgs += "-c.appx.publisherDisplayName=$env:MS_STORE_PUBLISHER_DISPLAY_NAME"
           } else {
-            Write-Warning "未配置 Partner Center 身份，当前 AppX 使用 electron-builder.yml 的测试身份，不能直接提交商店。"
+            Write-Warning "未配置 Partner Center 身份变量，当前 AppX 使用 electron-builder.yml 中的 DeskTato 产品标识。"
           }
 
           & npx @builderArgs
           if ($LASTEXITCODE -ne 0) { throw "Microsoft Store AppX 构建失败" }
+
+      - name: Verify Microsoft Store package identity
+        shell: pwsh
+        env:
+          EXPECTED_STORE_IDENTITY_NAME: ${{ vars.MS_STORE_IDENTITY_NAME || 'husu.DeskTato' }}
+          EXPECTED_STORE_PUBLISHER: ${{ vars.MS_STORE_PUBLISHER || 'CN=6E0F686D-434E-4F6F-A421-03253B68F46A' }}
+          EXPECTED_STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME || 'husu' }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $packages = @(Get-ChildItem "release\DesktopPet-*-Store.appx")
+          if ($packages.Count -ne 1) {
+            throw "必须生成且仅生成一个 Microsoft Store AppX，实际为 $($packages.Count) 个"
+          }
+
+          $makeAppx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if ($null -eq $makeAppx) { throw "Windows SDK makeappx.exe 不存在" }
+
+          $inspectionDirectory = "release\store-inspection"
+          & $makeAppx.FullName unpack /p $packages[0].FullName /d $inspectionDirectory /o
+          if ($LASTEXITCODE -ne 0) { throw "无法解包 Microsoft Store AppX" }
+
+          [xml]$manifest = Get-Content "$inspectionDirectory\AppxManifest.xml" -Raw
+          $actualIdentityName = $manifest.Package.Identity.GetAttribute("Name")
+          $actualPublisher = $manifest.Package.Identity.GetAttribute("Publisher")
+          $actualPublisherDisplayName = $manifest.Package.Properties.PublisherDisplayName.InnerText
+          if ($actualIdentityName -ne $env:EXPECTED_STORE_IDENTITY_NAME) {
+            throw "AppX Identity Name 不匹配：$actualIdentityName"
+          }
+          if ($actualPublisher -ne $env:EXPECTED_STORE_PUBLISHER) {
+            throw "AppX Publisher 不匹配：$actualPublisher"
+          }
+          if ($actualPublisherDisplayName -ne $env:EXPECTED_STORE_PUBLISHER_DISPLAY_NAME) {
+            throw "AppX PublisherDisplayName 不匹配：$actualPublisherDisplayName"
+          }
+          Write-Host "Microsoft Store AppX 身份校验通过：$actualIdentityName"
 
       - name: Generate Store metadata and checksum
         shell: bash

@@ -42,18 +42,18 @@ NSIS/portable 和 SignPath 两阶段签名相互独立。手动运行 Actions �
 npm run pack:store
 ```
 
-未配置仓库变量时，构建会使用 `electron-builder.yml` 中的 `CN=ms` 测试 Publisher，
-这种包只用于检查结构，不能提交 Partner Center。先在 Partner Center 创建开发者账号、
-保留应用名称并创建产品，再把产品标识页给出的值原样配置为 Repository Variables：
+Partner Center 中已经创建 `DeskTato` 产品（Store Product ID：`9NB1PJQK6D2F`），
+`electron-builder.yml` 与 Repository Variables 均配置了产品标识页给出的正式值：
 
-- `MS_STORE_IDENTITY_NAME`：Package/Identity/Name
-- `MS_STORE_PUBLISHER`：Package/Identity/Publisher（通常为 `CN=...`）
-- `MS_STORE_PUBLISHER_DISPLAY_NAME`：Properties/PublisherDisplayName
+- `MS_STORE_IDENTITY_NAME`：`husu.DeskTato`
+- `MS_STORE_PUBLISHER`：`CN=6E0F686D-434E-4F6F-A421-03253B68F46A`
+- `MS_STORE_PUBLISHER_DISPLAY_NAME`：`husu`
 
-三个变量必须同时存在；Actions 会用它们覆盖测试值，任何部分配置都会直接失败。商店
-包保持未签名，上传 Partner Center 并通过认证后由 Microsoft 签名和托管。当前 Store
-job 只接受手动触发，不加入 `v*` 标签发布，也不会改变正式 GitHub Release 的 13 个
-文件门禁。
+三个变量必须同时存在；Actions 会用它们覆盖仓库配置，任何部分配置都会直接失败。
+AppX 构建后还会解包并核对 Manifest 中的 Identity Name、Publisher 与
+PublisherDisplayName。商店包保持未签名，上传 Partner Center 并通过认证后由 Microsoft
+签名和托管。当前 Store job 只接受手动触发，不加入 `v*` 标签发布，也不会改变正式
+GitHub Release 的 13 个文件门禁。
 
 首次提交前还应在 `build/appx/` 补齐商店品牌图片，并在 Windows 真实环境完成安装、
 启动、升级与卸载验收；默认生成资源只保证打包通道可运行，不代表商店展示已就绪。
@@ -151,7 +151,7 @@ node scripts/verify-packaged-native.mjs \
 | macOS arm64 | unsigned DMG/ZIP 结构通过；2026-08-02 本机目录包与 GitHub Actions 预览打包复验通过 | packaged 启动、5 个 renderer、8 个 data 文件、Keyring/better-sqlite3 ABI 148 通过 | 待正式签名版 | 待正式签名版 | unsigned 预览通过 |
 | macOS x64 | 待 GitHub runner/Intel 机器 | 待验证 | 待验证 | 待验证 | 未完成 |
 | Windows x64 | 待 SignPath 后真实机器 | 待验证 | 待验证 | 待验证 | 未完成 |
-| Microsoft Store AppX x64 | 待 Actions/Partner Center | 待验证 | 待验证 | 待验证 | 打包能力已配置，待真实身份与品牌资源 |
+| Microsoft Store AppX x64 | 正式产品身份已配置，待 Windows/Partner Center 验收 | 待验证 | 待验证 | 待验证 | 打包能力与 Manifest 身份门禁已配置，待品牌资源 |
 | Linux x64 | 待 X11/Wayland 真机 | 待验证 | 手动下载 | 待验证 | 未完成 |
 | Linux arm64 | 待 arm64 runner/真机 | 待验证 | 手动下载 | 待验证 | 未完成 |
 

@@ -56,14 +56,14 @@ nsis:
 portable:
   artifactName: "DesktopPet-${version}-Windows-${arch}-Portable.${ext}"
 
-# Microsoft Store 使用独立 AppX 通道；CN=ms 仅用于未签名预览包。
-# 提交商店前必须用 Partner Center 分配的 Identity/Publisher 覆盖这些测试值。
+# Microsoft Store 使用 Partner Center 为 DeskTato 分配的正式产品标识。
+# GitHub Actions Repository Variables 可覆盖这些公开值，三项必须同时配置。
 appx:
   artifactName: "DesktopPet-${version}-Windows-${arch}-Store.${ext}"
   applicationId: DesktopPetV2
-  displayName: Desktop Pet
-  identityName: com.husu.desktoppet.v2
-  publisher: CN=ms
+  displayName: DeskTato
+  identityName: husu.DeskTato
+  publisher: CN=6E0F686D-434E-4F6F-A421-03253B68F46A
   publisherDisplayName: husu
   languages:
     - zh-CN

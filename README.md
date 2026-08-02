@@ -89,8 +89,8 @@ npm run pack:dir
 npm run pack:store
 ```
 
-默认使用 `electron-builder.yml` 中的测试 Publisher，只用于结构验证。提交 Microsoft
-Store 前，必须改用 Partner Center 为该产品分配的 Identity 与 Publisher；完整配置见
+`electron-builder.yml` 已配置 Partner Center 为 `DeskTato` 分配的正式 Identity 与
+Publisher；GitHub Actions Repository Variables 会覆盖并复核这些公开值。完整配置见
 [`docs/release-operations.md`](docs/release-operations.md)。
 
 macOS arm64 本地验证产物位于：
