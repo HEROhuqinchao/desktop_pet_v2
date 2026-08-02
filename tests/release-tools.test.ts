@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import sharp from 'sharp';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
@@ -19,6 +20,7 @@ const packageWorkflowPath = path.join(
   'workflows',
   'package.yml',
 );
+const packageJsonPath = path.join(projectRoot, 'package.json');
 const temporaryDirectories: string[] = [];
 
 afterEach(() => {
@@ -242,6 +244,49 @@ describe('Microsoft Store 打包配置', () => {
     expect(packageWorkflow).toContain('--platform win32-store --arch x64');
     expect(packageWorkflow).toContain('Verify Microsoft Store package identity');
     expect(packageWorkflow).toContain('AppX Identity Name 不匹配');
+  });
+
+  it('提供可复现的 AppX 和商店一览图片生成命令', () => {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+
+    expect(packageJson.scripts['assets:store']).toBe(
+      'node scripts/generate-store-assets.mjs',
+    );
+    expect(packageJson.scripts['assets:store:screenshots']).toBe(
+      'node scripts/generate-store-screenshots.mjs',
+    );
+    expect(fs.existsSync(path.join(
+      projectRoot,
+      'scripts',
+      'generate-store-assets.mjs',
+    ))).toBe(true);
+    expect(fs.existsSync(path.join(
+      projectRoot,
+      'scripts',
+      'generate-store-screenshots.mjs',
+    ))).toBe(true);
+  });
+
+  it('生成 Microsoft Store 要求尺寸的图片资源', async () => {
+    const expectedAssets = new Map([
+      ['build/appx/StoreLogo.png', [50, 50]],
+      ['build/appx/Square44x44Logo.png', [44, 44]],
+      ['build/appx/Square150x150Logo.png', [150, 150]],
+      ['build/appx/Wide310x150Logo.png', [310, 150]],
+      ['build/store-listing/AppTile300x300.png', [300, 300]],
+      ['build/store-listing/01-desktop-companion.png', [1366, 768]],
+      ['build/store-listing/02-focus-reminders.png', [1366, 768]],
+      ['build/store-listing/03-growth-tasks.png', [1366, 768]],
+      ['build/store-listing/04-catch-food-game.png', [1366, 768]],
+      ['build/store-listing/05-private-customizable.png', [1366, 768]],
+    ]);
+
+    for (const [relativePath, [width, height]] of expectedAssets) {
+      const metadata = await sharp(path.join(projectRoot, relativePath)).metadata();
+      expect(metadata.width, relativePath).toBe(width);
+      expect(metadata.height, relativePath).toBe(height);
+      expect(metadata.format, relativePath).toBe('png');
+    }
   });
 });
 

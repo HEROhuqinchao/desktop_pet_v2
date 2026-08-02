@@ -146,5 +146,7 @@ release/mac-arm64/Desktop Pet.app
 - [`docs/asset-gaps.md`](docs/asset-gaps.md)
 - [`docs/release-operations.md`](docs/release-operations.md)
 - [`docs/licensing-and-provenance.md`](docs/licensing-and-provenance.md)
+- [`docs/microsoft-store-listing-zh-CN.md`](docs/microsoft-store-listing-zh-CN.md)
+- [`docs/privacy-policy.md`](docs/privacy-policy.md)
 
 <!-- 创建者：husu -->

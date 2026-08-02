@@ -21,6 +21,8 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "verify:data": "node scripts/verify-runtime-data.mjs",
+    "assets:store": "node scripts/generate-store-assets.mjs",
+    "assets:store:screenshots": "node scripts/generate-store-screenshots.mjs",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
     "check": "npm run lint && npm run typecheck && npm run verify:data && npm run test && npm run build",
