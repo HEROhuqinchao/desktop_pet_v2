@@ -12,9 +12,10 @@ export default defineConfig({
   plugins: [react()],
   publicDir: path.join(rendererRoot, 'public'),
   server: {
-    host: '127.0.0.1',
-    port: 5173,
+    host: 'localhost',
+    port: 3000,
     strictPort: true,
+    allowedHosts: true,
   },
   build: {
     outDir: path.join(projectRoot, 'dist', 'renderer'),

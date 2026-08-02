@@ -1950,16 +1950,16 @@ const PANEL_TITLES: Record<PanelPage, string> = {
 };
 
 const PANEL_SIZES: Record<PanelPage, { width: number; height: number }> = {
-  status: { width: 340, height: 350 },
-  inventory: { width: 350, height: 340 },
-  growth: { width: 580, height: 470 },
-  focus: { width: 440, height: 320 },
-  conversation: { width: 450, height: 560 },
-  memory: { width: 620, height: 440 },
-  privacy: { width: 450, height: 400 },
-  'content-packs': { width: 580, height: 400 },
-  'pet-library': { width: 580, height: 460 },
-  prompt: { width: 380, height: 190 },
+  status: { width: 360, height: 380 },
+  inventory: { width: 380, height: 380 },
+  growth: { width: 600, height: 500 },
+  focus: { width: 480, height: 360 },
+  conversation: { width: 480, height: 580 },
+  memory: { width: 640, height: 480 },
+  privacy: { width: 480, height: 440 },
+  'content-packs': { width: 600, height: 440 },
+  'pet-library': { width: 600, height: 500 },
+  prompt: { width: 400, height: 210 },
 };
 
 function openPanel(
@@ -1989,6 +1989,11 @@ function openPanel(
   window.setMenuBarVisibility(false);
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => event.preventDefault());
+  window.on('blur', () => {
+    if (!window.isDestroyed() && !isSystemDialogOpen && page !== 'prompt') {
+      window.close();
+    }
+  });
   panelWindows.set(page, window);
   window.on('closed', () => {
     if (panelWindows.get(page) === window) {

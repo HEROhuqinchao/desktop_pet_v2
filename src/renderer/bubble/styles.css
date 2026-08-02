@@ -9,6 +9,7 @@ body,
   background: transparent;
   user-select: none;
   cursor: default;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif;
 }
 
 .bubble-stage {
@@ -20,11 +21,13 @@ body,
   padding: 4px 8px 16px;
   box-sizing: border-box;
   opacity: 0;
-  transition: opacity 190ms ease-in-out;
+  transform: translateY(6px);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
 }
 
 .bubble-stage[data-visible='true'] {
   opacity: 1;
+  transform: translateY(0);
 }
 
 .bubble-card {
@@ -32,30 +35,39 @@ body,
   max-width: 264px;
   min-width: 128px;
   padding: 10px 14px 12px;
-  border-radius: 13px;
-  border: 1.6px solid rgba(91, 66, 55, 0.75);
-  background: rgba(255, 255, 255, 0.95);
-  color: #513d35;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #1e293b;
   font-size: 13px;
-  line-height: 1.35;
+  font-weight: 500;
+  line-height: 1.4;
   text-align: center;
-  box-shadow: 0 6px 18px rgba(30, 20, 12, 0.14);
+  box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.16);
 }
 
 .bubble-card[data-emotion='angry'] {
-  background: rgba(255, 225, 221, 0.95);
+  background: rgba(254, 226, 226, 0.94);
+  border-color: rgba(248, 113, 113, 0.4);
+  color: #991b1b;
 }
 
 .bubble-card[data-emotion='happy'] {
-  background: rgba(255, 248, 214, 0.95);
+  background: rgba(254, 243, 199, 0.94);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #92400e;
 }
 
 .bubble-card[data-emotion='sleepy'] {
-  background: rgba(231, 235, 255, 0.95);
+  background: rgba(224, 231, 255, 0.94);
+  border-color: rgba(129, 140, 248, 0.4);
+  color: #3730a3;
 }
 
 .bubble-card[data-night='true'] {
-  filter: brightness(0.88);
+  filter: brightness(0.85);
 }
 
 .bubble-card p {
@@ -65,12 +77,13 @@ body,
 
 .bubble-tail {
   position: absolute;
-  left: 58%;
-  bottom: -9px;
+  left: 50%;
+  bottom: -6px;
   width: 12px;
-  height: 10px;
+  height: 12px;
   background: inherit;
-  border-right: 1.6px solid rgba(91, 66, 55, 0.75);
-  border-bottom: 1.6px solid rgba(91, 66, 55, 0.75);
-  transform: skewX(38deg) rotate(45deg);
+  border-right: 1px solid rgba(255, 255, 255, 0.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+  transform: translateX(-50%) rotate(45deg);
+  border-bottom-right-radius: 3px;
 }

@@ -11,8 +11,8 @@
   "scripts": {
     "clean": "node scripts/clean.mjs",
     "dev": "npm run build:main && concurrently -k -n renderer,electron \"npm:dev:renderer\" \"npm:dev:electron\"",
-    "dev:renderer": "vite --host 127.0.0.1 --port 5173",
-    "dev:electron": "wait-on http://127.0.0.1:5173/pet/index.html && cross-env DESKTOP_PET_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+    "dev:renderer": "vite --host localhost --port 3000",
+    "dev:electron": "wait-on http://localhost:3000/pet/index.html && cross-env DESKTOP_PET_DEV_SERVER_URL=http://localhost:3000 electron .",
     "build:main": "node scripts/build-main.mjs",
     "build:renderer": "vite build",
     "build": "npm run clean && npm run build:main && npm run build:renderer",
