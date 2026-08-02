@@ -18,7 +18,7 @@ export function selectPackagedNativeModule(files, moduleName, platform, arch) {
     : [`${platform}-${arch}`];
   for (const marker of platformMarkers) {
     const platformMatches = matches.filter((filePath) => (
-      normalizePath(filePath).includes(marker)
+      nativeFileName(filePath).includes(marker)
     ));
     if (platformMatches.length === 1) return platformMatches[0];
   }
@@ -31,4 +31,8 @@ export function selectPackagedNativeModule(files, moduleName, platform, arch) {
 
 function normalizePath(filePath) {
   return filePath.split(path.sep).join('/');
+}
+
+function nativeFileName(filePath) {
+  return normalizePath(filePath).split('/').at(-1) ?? '';
 }

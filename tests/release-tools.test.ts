@@ -143,6 +143,18 @@ describe('打包原生模块选择', () => {
     expect(runNativeSelector(files, 'keyring', 'linux', 'x64')).toBe(files[1]);
   });
 
+  it('Linux 产物根目录名不参与原生模块平台匹配', () => {
+    const files = [
+      'release/linux-arm64-unpacked/resources/node_modules/better-sqlite3/prebuilds/darwin-arm64.node',
+      'release/linux-arm64-unpacked/resources/node_modules/better-sqlite3/prebuilds/linux-arm64.node',
+      'release/linux-arm64-unpacked/resources/node_modules/better-sqlite3/prebuilds/win32-arm64.node',
+    ];
+
+    expect(runNativeSelector(files, 'better-sqlite3', 'linux', 'arm64')).toBe(
+      files[1],
+    );
+  });
+
   it('优先选择 electron-builder 在当前 runner 重建的文件', () => {
     const rebuilt = 'resources/node_modules/better-sqlite3/build/Release/better_sqlite3.node';
     const files = [
