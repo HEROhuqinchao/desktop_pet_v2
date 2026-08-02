@@ -2143,10 +2143,25 @@ function createTray(): void {
   if (tray && !tray.isDestroyed()) {
     return;
   }
-  let icon = nativeImage.createFromPath(applicationIconPath());
-  if (process.platform === 'darwin' && !icon.isEmpty()) {
-    icon = icon.resize({ width: 22, height: 22 });
+  let iconPath = path.join(__dirname, '../renderer/icons/trayTemplate@2x.png');
+  if (!fs.existsSync(iconPath)) {
+    iconPath = path.join(__dirname, '../renderer/public/icons/trayTemplate@2x.png');
   }
+  if (!fs.existsSync(iconPath)) {
+    iconPath = path.join(__dirname, '../../build/trayTemplate@2x.png');
+  }
+  if (!fs.existsSync(iconPath)) {
+    iconPath = applicationIconPath();
+  }
+
+  let icon = nativeImage.createFromPath(iconPath);
+  if (process.platform === 'darwin' && !icon.isEmpty()) {
+    icon = icon.resize({ width: 18, height: 18 });
+    icon.setTemplateImage(true);
+  } else if (!icon.isEmpty()) {
+    icon = icon.resize({ width: 20, height: 20 });
+  }
+
   if (icon.isEmpty()) {
     return;
   }
