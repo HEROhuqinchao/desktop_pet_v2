@@ -27,6 +27,7 @@
     "pack:dir": "npm run check && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir --config electron-builder.yml",
     "pack:mac": "npm run check && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --config electron-builder.yml",
     "pack:win": "npm run check && electron-builder --win --config electron-builder.yml",
+    "pack:store": "npm run check && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win appx --x64 --config electron-builder.yml --publish never",
     "pack:linux": "npm run check && electron-builder --linux --config electron-builder.yml",
     "release:verify": "node scripts/release.mjs verify",
     "sbom": "npm sbom --omit=dev --sbom-format=spdx"

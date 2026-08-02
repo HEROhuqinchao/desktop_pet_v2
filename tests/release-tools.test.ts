@@ -91,6 +91,33 @@ describe('发布工具', () => {
     ]);
   });
 
+  it('为 Microsoft Store AppX 生成单产物元数据', () => {
+    const root = createTemporaryDirectory();
+    writeArtifact(root, 'DesktopPet-0.1.0-Windows-x64-Store.appx', 'appx');
+    const metadataPath = path.join(root, 'build-meta-win32-store-x64.json');
+
+    const result = runRelease([
+      'metadata',
+      '--platform', 'win32-store',
+      '--arch', 'x64',
+      '--directory', root,
+      '--output', metadataPath,
+      '--signed', 'false',
+    ]);
+
+    expect(result.status).toBe(0);
+    const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    expect(metadata).toMatchObject({
+      platform: 'win32-store',
+      arch: 'x64',
+      signed: false,
+    });
+    expect(metadata.artifacts).toHaveLength(1);
+    expect(metadata.artifacts[0].fileName).toBe(
+      'DesktopPet-0.1.0-Windows-x64-Store.appx',
+    );
+  });
+
   it('聚合前重新校验文件哈希并生成安全下载地址', () => {
     const root = createTemporaryDirectory();
     writeArtifact(root, 'DesktopPet-0.1.0-macOS-arm64.dmg', 'dmg');
@@ -191,6 +218,22 @@ describe('打包原生模块选择', () => {
     expect(runNativeSelector(files, 'better-sqlite3', 'win32', 'x64')).toBe(
       rebuilt,
     );
+  });
+});
+
+describe('Microsoft Store 打包配置', () => {
+  it('提供独立 AppX 目标和 Actions 预览产物', () => {
+    const builderConfig = fs.readFileSync(builderConfigPath, 'utf8');
+    const packageWorkflow = fs.readFileSync(packageWorkflowPath, 'utf8');
+
+    expect(builderConfig).toContain('appx:');
+    expect(builderConfig).toContain(
+      'artifactName: "DesktopPet-${version}-Windows-${arch}-Store.${ext}"',
+    );
+    expect(builderConfig).toContain('capabilities:\n    - runFullTrust');
+    expect(packageWorkflow).toContain('windows-store-x64');
+    expect(packageWorkflow).toContain('distribution-win32-store-x64');
+    expect(packageWorkflow).toContain('--platform win32-store --arch x64');
   });
 });
 

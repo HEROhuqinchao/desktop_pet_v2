@@ -172,7 +172,14 @@ function findExpectedArtifacts(directory, platform, arch) {
   const patterns = {
     darwin: new RegExp(`^DesktopPet-${escapedVersion}-macOS-${escapedArch}\\.(dmg|zip)$`),
     win32: new RegExp(`^DesktopPet-${escapedVersion}-Windows-${escapedArch}-(Setup|Portable)\\.exe$`),
+    'win32-store': new RegExp(`^DesktopPet-${escapedVersion}-Windows-${escapedArch}-Store\\.appx$`),
     linux: new RegExp(`^DesktopPet-${escapedVersion}-Linux-${linuxArchPattern}$`),
+  };
+  const expectedCounts = {
+    darwin: 2,
+    win32: 2,
+    'win32-store': 1,
+    linux: 2,
   };
   const pattern = patterns[platform];
   if (!pattern) throw new Error(`不支持的平台：${platform}`);
@@ -180,8 +187,9 @@ function findExpectedArtifacts(directory, platform, arch) {
     .filter((entry) => entry.isFile() && pattern.test(entry.name))
     .map((entry) => path.join(directory, entry.name))
     .sort();
-  if (files.length !== 2) {
-    throw new Error(`${platform}-${arch} 应有 2 个发布文件，实际 ${files.length}`);
+  const expectedCount = expectedCounts[platform];
+  if (files.length !== expectedCount) {
+    throw new Error(`${platform}-${arch} 应有 ${expectedCount} 个发布文件，实际 ${files.length}`);
   }
   return files;
 }

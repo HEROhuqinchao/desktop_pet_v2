@@ -7,6 +7,7 @@
 | 触发方式 | 用途 | 签名要求 | GitHub Release |
 | --- | --- | --- | --- |
 | `workflow_dispatch` | 指定平台预览包 | 允许 unsigned | 不创建，仅保留 7 天 Artifact |
+| `workflow_dispatch: windows-store-x64` | Microsoft Store AppX 预览包 | 上传商店后由 Microsoft 重签名 | 不创建，仅保留 7 天 Artifact |
 | 推送 `vX.Y.Z` 标签 | 稳定版 | macOS 与 Windows 强制签名 | 全平台通过后创建 |
 
 正式标签必须等于 `package.json` 中的 `v${version}`，lockfile 的两个版本字段也必须
@@ -29,6 +30,33 @@ NSIS+portable，Linux x64/arm64 各 AppImage+DEB。
 正式构建会启用 Hardened Runtime、Developer ID 签名与 notarization，并依次运行
 `codesign --verify`、`spctl --assess` 和 `xcrun stapler validate`。任一凭据为空或任一
 验证失败，都不会创建 Release。
+
+### Microsoft Store AppX
+
+Microsoft Store 包使用 electron-builder 的 `appx` 目标，与 GitHub Release 中的
+NSIS/portable 和 SignPath 两阶段签名相互独立。手动运行 Actions 时选择
+`windows-store-x64`（或 `all`），成功后下载 `distribution-win32-store-x64` Artifact。
+本地 Windows 10/11 x64 也可执行：
+
+```bash
+npm run pack:store
+```
+
+未配置仓库变量时，构建会使用 `electron-builder.yml` 中的 `CN=ms` 测试 Publisher，
+这种包只用于检查结构，不能提交 Partner Center。先在 Partner Center 创建开发者账号、
+保留应用名称并创建产品，再把产品标识页给出的值原样配置为 Repository Variables：
+
+- `MS_STORE_IDENTITY_NAME`：Package/Identity/Name
+- `MS_STORE_PUBLISHER`：Package/Identity/Publisher（通常为 `CN=...`）
+- `MS_STORE_PUBLISHER_DISPLAY_NAME`：Properties/PublisherDisplayName
+
+三个变量必须同时存在；Actions 会用它们覆盖测试值，任何部分配置都会直接失败。商店
+包保持未签名，上传 Partner Center 并通过认证后由 Microsoft 签名和托管。当前 Store
+job 只接受手动触发，不加入 `v*` 标签发布，也不会改变正式 GitHub Release 的 13 个
+文件门禁。
+
+首次提交前还应在 `build/appx/` 补齐商店品牌图片，并在 Windows 真实环境完成安装、
+启动、升级与卸载验收；默认生成资源只保证打包通道可运行，不代表商店展示已就绪。
 
 ### Windows SignPath
 
@@ -95,6 +123,12 @@ macOS 未签名预览：
 npm run pack:mac
 ```
 
+Windows Microsoft Store AppX 预览：
+
+```bash
+npm run pack:store
+```
+
 打包产物通过 `electron-builder.yml` 的 `extraResources` 携带 `data/` 运行时数据
 （台词、人格、事件、节日和小游戏配置），在 macOS 包内位于
 `Contents/Resources/data/`。新增或调整数据文件后必须同步更新
@@ -117,6 +151,7 @@ node scripts/verify-packaged-native.mjs \
 | macOS arm64 | unsigned DMG/ZIP 结构通过；2026-08-02 本机目录包与 GitHub Actions 预览打包复验通过 | packaged 启动、5 个 renderer、8 个 data 文件、Keyring/better-sqlite3 ABI 148 通过 | 待正式签名版 | 待正式签名版 | unsigned 预览通过 |
 | macOS x64 | 待 GitHub runner/Intel 机器 | 待验证 | 待验证 | 待验证 | 未完成 |
 | Windows x64 | 待 SignPath 后真实机器 | 待验证 | 待验证 | 待验证 | 未完成 |
+| Microsoft Store AppX x64 | 待 Actions/Partner Center | 待验证 | 待验证 | 待验证 | 打包能力已配置，待真实身份与品牌资源 |
 | Linux x64 | 待 X11/Wayland 真机 | 待验证 | 手动下载 | 待验证 | 未完成 |
 | Linux arm64 | 待 arm64 runner/真机 | 待验证 | 手动下载 | 待验证 | 未完成 |
 

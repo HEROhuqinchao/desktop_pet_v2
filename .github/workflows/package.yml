@@ -1,7 +1,8 @@
 name: Build, Sign & Release
 
 # 创建者：husu
-# workflow_dispatch 只生成短期预览 Artifact；v* 标签强制完成签名、公证和稳定 Release。
+# workflow_dispatch 只生成短期预览 Artifact（含可选 Store AppX）；
+# v* 标签强制完成签名、公证和稳定 Release。
 
 on:
   workflow_dispatch:
@@ -16,6 +17,7 @@ on:
           - macos-arm64
           - macos-x64
           - windows-x64
+          - windows-store-x64
           - linux-x64
           - linux-arm64
   push:
@@ -399,6 +401,100 @@ jobs:
             release/DesktopPet-*.exe
             release/checksums-win32-x64.sha256
             release/build-meta-win32-x64.json
+          if-no-files-found: error
+          retention-days: 7
+
+  build-windows-store:
+    name: Build Microsoft Store AppX x64
+    needs: verify-source
+    # Store 包与 GitHub Release/SignPath 通道相互独立；提交 Partner Center 后由商店重签名。
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.platform == 'all' || inputs.platform == 'windows-store-x64')
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.verify-source.outputs.commit }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci --registry=https://registry.npmjs.org
+      - run: npm run build
+
+      - name: Build unpacked Windows app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: >-
+          npx electron-builder --win --x64 --dir
+          --config electron-builder.yml --publish never
+
+      - name: Verify packaged resources and native modules
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $binary = (Get-ChildItem "release\win-unpacked\*.exe" | Select-Object -First 1).FullName
+          node scripts/verify-packaged-native.mjs $binary "release\win-unpacked\resources"
+
+      - name: Build Microsoft Store AppX
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          MS_STORE_IDENTITY_NAME: ${{ vars.MS_STORE_IDENTITY_NAME }}
+          MS_STORE_PUBLISHER: ${{ vars.MS_STORE_PUBLISHER }}
+          MS_STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $identityVariables = @(
+            "MS_STORE_IDENTITY_NAME",
+            "MS_STORE_PUBLISHER",
+            "MS_STORE_PUBLISHER_DISPLAY_NAME"
+          )
+          $configured = @($identityVariables | Where-Object {
+            -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
+          })
+          if ($configured.Count -ne 0 -and $configured.Count -ne $identityVariables.Count) {
+            throw "Microsoft Store 身份变量必须全部配置：$($identityVariables -join ', ')"
+          }
+
+          $builderArgs = @(
+            "electron-builder",
+            "--win", "appx", "--x64",
+            "--config", "electron-builder.yml",
+            "--prepackaged", "release\win-unpacked",
+            "--publish", "never"
+          )
+          if ($configured.Count -eq $identityVariables.Count) {
+            $builderArgs += "-c.appx.identityName=$env:MS_STORE_IDENTITY_NAME"
+            $builderArgs += "-c.appx.publisher=$env:MS_STORE_PUBLISHER"
+            $builderArgs += "-c.appx.publisherDisplayName=$env:MS_STORE_PUBLISHER_DISPLAY_NAME"
+          } else {
+            Write-Warning "未配置 Partner Center 身份，当前 AppX 使用 electron-builder.yml 的测试身份，不能直接提交商店。"
+          }
+
+          & npx @builderArgs
+          if ($LASTEXITCODE -ne 0) { throw "Microsoft Store AppX 构建失败" }
+
+      - name: Generate Store metadata and checksum
+        shell: bash
+        run: >-
+          node scripts/release.mjs metadata
+          --platform win32-store --arch x64 --directory release
+          --output release/build-meta-win32-store-x64.json
+          --signed false
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: distribution-win32-store-x64
+          path: |
+            release/DesktopPet-*-Store.appx
+            release/checksums-win32-store-x64.sha256
+            release/build-meta-win32-store-x64.json
           if-no-files-found: error
           retention-days: 7
 

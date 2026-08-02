@@ -37,6 +37,7 @@ Windows/Linux 真机验收仍等待仓库外条件。已建立：
 - 严格校验的 ZIP 内容包、JSON 数据迁移和 SQLite 备份恢复
 - HTTPS 更新清单、手动检查更新和安全下载入口
 - macOS arm64/x64、Windows x64、Linux x64/arm64 的 GitHub Actions 打包矩阵
+- Microsoft Store AppX x64 独立打包命令与 GitHub Actions 预览产物
 - Developer ID 公证与两阶段 SignPath 的正式发布失败关闭门禁
 - SHA-256、SPDX 2.3 SBOM 和跨平台 Release manifest
 - 运行时 JSON、TypeScript 单元测试、lint、类型检查和 Electron 构建门禁
@@ -82,6 +83,16 @@ node scripts/release.mjs verify
 npm run pack:dir
 ```
 
+在 Windows 10/11 x64 上构建 Microsoft Store AppX 预览包：
+
+```bash
+npm run pack:store
+```
+
+默认使用 `electron-builder.yml` 中的测试 Publisher，只用于结构验证。提交 Microsoft
+Store 前，必须改用 Partner Center 为该产品分配的 Identity 与 Publisher；完整配置见
+[`docs/release-operations.md`](docs/release-operations.md)。
+
 macOS arm64 本地验证产物位于：
 
 ```text
@@ -116,6 +127,8 @@ release/mac-arm64/Desktop Pet.app
 - Linux 原生 Wayland：普通应用可能无法主动定位和移动顶层窗口，将作为降级模式。
 - 当前本地包尚未进行 Developer ID、notarization 或 Authenticode 签名，不能作为正式版发布。
 - `v*` 正式发布流水线已设置为缺少 Apple/SignPath 配置即失败，不会降级上传未签名包。
+- Microsoft Store AppX 是独立分发通道，上传 Partner Center 后由 Microsoft 重签名，
+  当前不会混入 GitHub Release 的 NSIS/portable 正式产物。
 
 ## 文档
 
