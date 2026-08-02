@@ -97,7 +97,7 @@ jobs:
           npm --silent run sbom > desktop-pet-v2.spdx.json
           node -e "const x=require('./desktop-pet-v2.spdx.json'); if(x.spdxVersion!=='SPDX-2.3') process.exit(1)"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-sbom
           path: desktop-pet-v2.spdx.json
@@ -199,7 +199,7 @@ jobs:
             --output "release/build-meta-darwin-${{ matrix.arch }}.json" \
             --signed "$SIGNED"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: distribution-darwin-${{ matrix.arch }}
           path: |
@@ -282,7 +282,7 @@ jobs:
       - name: Upload unsigned unpacked app
         id: unsigned-app
         if: github.ref_type == 'tag'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: signpath-app-input-${{ github.run_id }}
           path: unsigned-app
@@ -344,7 +344,7 @@ jobs:
       - name: Upload unsigned outer packages
         id: unsigned-distribution
         if: github.ref_type == 'tag'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: signpath-distribution-input-${{ github.run_id }}
           path: unsigned-distribution
@@ -392,7 +392,7 @@ jobs:
             --platform win32 --arch x64 --directory release \
             --output release/build-meta-win32-x64.json --signed "$SIGNED"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: distribution-win32-x64
           path: |
@@ -457,7 +457,7 @@ jobs:
           --output "release/build-meta-linux-${{ matrix.arch }}.json"
           --signed false
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: distribution-linux-${{ matrix.arch }}
           path: |
@@ -485,13 +485,13 @@ jobs:
         with:
           ref: ${{ needs.verify-source.outputs.commit }}
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: distribution-*
           path: artifacts
           merge-multiple: true
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-sbom
           path: artifacts
