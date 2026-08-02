@@ -23,6 +23,7 @@ Windows/Linux 真机验收仍等待仓库外条件。已建立：
 - 睡眠流程、属性情绪、主动台词、独立气泡和程序化状态/事件特效
 - 自主散步、奔跑、跳跃、鼠标注视和追逐行为
 - Codex v2 完整动作行与 17 向注视帧
+- 可选专属动作旁车、30 态映射与摸摸/顺毛/提醒/专注/小游戏/事件动作 cue
 - 设置和多屏归一化位置持久化
 - Codex v1/v2 宠物包严格校验与独立本地宠物库
 - Codex 自动发现、幂等同步、冲突保护和反向导出
@@ -61,6 +62,21 @@ npm run start
 ```bash
 npm run check
 ```
+
+## 宠物动作生成 SKILL
+
+项目级 SKILL 位于 `.agents/skills/hatch-desktop-pet`。它先复用 `hatch-pet` 生成并
+校验 Codex v2 基础图集，再根据参考图生成 `desktop-pet-actions.json` 与
+`actions.webp`，补齐睡觉、吃饭、玩耍、摸摸等专属动作，同时保留旧宠物包回退。
+
+使用方式：
+
+```text
+使用 $hatch-desktop-pet，根据给出的宠物参考图生成动作完整的 desktop_pet_v2 宠物包。
+```
+
+SKILL 内置动作计划、通用条带拆帧、动作图集装配、GIF/contact sheet 预览、运行时
+状态/cue 覆盖率校验和工具链冒烟测试。
 
 仅校验台词、人格、事件、节日和小游戏运行时数据：
 

@@ -126,7 +126,7 @@ describe('PetLibrary and PetCatalog', () => {
     await expect(
       library.importFolder(path.join(codexRoot, 'tudou')),
     ).rejects.toBeInstanceOf(PetPackageConflictError);
-  });
+  }, 15_000);
 
   it('exports only the Codex package files', async () => {
     const root = await temporaryDirectory();

@@ -16,7 +16,7 @@ flowchart LR
     COPY --> VERIFY["复制后再次校验"]
     VERIFY --> LIBRARY["userData/pets 独立宠物库"]
     LIBRARY --> CATALOG
-    CATALOG --> ASSET["pet-asset://current/spritesheet"]
+    CATALOG --> ASSET["pet-asset://current/spritesheet 或 actions"]
     ASSET --> RENDERER["受限 Renderer"]
 ```
 
@@ -28,12 +28,15 @@ flowchart LR
 - 图集只允许包内单个 `.png` 或 `.webp` 文件，不允许路径穿越或符号链接。
 - 图集像素尺寸必须与声明的单元格、行列数完全一致。
 - 必需动作单元格必须含有非透明像素，未使用单元格必须保持透明。
-- 内容身份使用 `SHA-256(pet.json 原始字节 + 图集原始字节)`。
+- 可选动作旁车固定使用 `desktop-pet-actions.json`，其图集保持 `192×208` 单元格、
+  显式逐帧时长和状态映射；缺失映射回退 Codex 基础动作。
+- 无旁车时，内容身份使用 `SHA-256(pet.json 原始字节 + 图集原始字节)`；有旁车时
+  继续追加动作清单与动作图集原始字节。
 - 导入先写临时目录，复制后再次校验，再以原子重命名进入正式目录。
 
 同 ID 同内容会跳过；同 ID 不同内容会报告冲突，不会静默覆盖。Renderer 只能通过
-受限的 `pet-asset://current/spritesheet` 协议读取当前宠物图集，不能获得任意文件
-系统访问能力。
+受限的 `pet-asset://current/spritesheet` 和 `pet-asset://current/actions` 协议读取
+当前宠物图集，不能获得任意文件系统访问能力。
 
 ## Codex 同步验证
 

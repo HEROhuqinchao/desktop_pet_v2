@@ -1,85 +1,145 @@
 ---
 name: hatch-desktop-pet
-description: [TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]
+description: Create, upgrade, repair, validate, and package action-complete pets for the desktop_pet_v2 project from one or more character reference images. Use when generating a new desktop pet, adding or refining sleep/eat/play/petting and other interaction animations, converting a Codex v1/v2 pet into a desktop_pet_v2 action pack, repairing inconsistent frames, or producing the Codex-compatible base atlas plus desktop-pet-actions.json and its optional action atlas.
 ---
 
 # Hatch Desktop Pet
 
-## Overview
+## Goal
 
-[TODO: 1-2 sentences explaining what this skill enables]
+Generate one identity-consistent pet package with two compatible layers:
 
-## Structuring This Skill
+1. Keep `pet.json` and `spritesheet.webp` compatible with Codex v2.
+2. Add `desktop-pet-actions.json` and its atlas for desktop_pet_v2-only actions.
 
-[TODO: Choose the structure that best fits this skill's purpose. Common patterns:
+Never replace the Codex v2 contract with the extension. If the action sidecar is absent or an action is unmapped, desktop_pet_v2 must fall back to the base atlas.
 
-**1. Workflow-Based** (best for sequential processes)
-- Works well when there are clear step-by-step procedures
-- Example: DOCX skill with "Workflow Decision Tree" -> "Reading" -> "Creating" -> "Editing"
-- Structure: ## Overview -> ## Workflow Decision Tree -> ## Step 1 -> ## Step 2...
+## Required dependencies
 
-**2. Task-Based** (best for tool collections)
-- Works well when the skill offers different operations/capabilities
-- Example: PDF skill with "Quick Start" -> "Merge PDFs" -> "Split PDFs" -> "Extract Text"
-- Structure: ## Overview -> ## Quick Start -> ## Task Category 1 -> ## Task Category 2...
+Before running bundled Python scripts, call `load_workspace_dependencies` and use the returned Python executable. It must include Pillow.
 
-**3. Reference/Guidelines** (best for standards or specifications)
-- Works well for brand guidelines, coding standards, or requirements
-- Example: Brand styling with "Brand Guidelines" -> "Colors" -> "Typography" -> "Features"
-- Structure: ## Overview -> ## Guidelines -> ## Specifications -> ## Usage...
+Use `$imagegen` for every visual generation or repair. Read and follow its installed `SKILL.md` before generating. Do not call image APIs or create visual frames procedurally.
 
-**4. Capabilities-Based** (best for integrated systems)
-- Works well when the skill provides multiple interrelated features
-- Example: Product Management with "Core Capabilities" -> numbered capability list
-- Structure: ## Overview -> ## Core Capabilities -> ### 1. Feature -> ### 2. Feature...
+Use `$hatch-pet` for creating, upgrading, repairing, and validating the Codex v2 base package. Resolve it through `${CODEX_HOME:-$HOME/.codex}/skills/hatch-pet`; do not hard-code a user home path. If it is unavailable, stop and report that the Codex v2 base generator is required.
 
-Patterns can be mixed and matched as needed. Most skills combine patterns (e.g., start with task-based, add workflow for complex operations).
+## Read references selectively
 
-Delete this entire "Structuring This Skill" section when done - it's just guidance.]
+- Read [runtime-contract.md](references/runtime-contract.md) before planning or packaging actions.
+- Read [animation-quality.md](references/animation-quality.md) before writing image prompts or accepting frames.
+- Read [action-catalog.json](references/action-catalog.json) when preparing, extending, or auditing an action set.
+- Read [example-workflow.md](references/example-workflow.md) when a runnable command sequence or smoke-test example is needed.
 
-## [TODO: Replace with the first main section based on chosen structure]
+## Workflow
 
-[TODO: Add content here. See examples in existing skills:
-- Code samples for technical skills
-- Decision trees for complex workflows
-- Concrete examples with realistic user requests
-- References to scripts/templates/references as needed]
+### 1. Classify the run
 
-## Resources (optional)
+Choose exactly one:
 
-Create only the resource directories this skill actually needs. Delete this section if no resources are required.
+- `new`: build the base Codex v2 pet and extension from references or text.
+- `upgrade`: preserve an approved existing Codex v1/v2 pet, add missing v2 directions if necessary, then add the extension.
+- `repair`: keep passing frames and regenerate only failed complete action strips.
+- `refine`: rebuild selected older actions with better motion while preserving package identity and mappings.
 
-### scripts/
-Executable code (Python/Bash/etc.) that can be run directly to perform specific operations.
+Collect or infer the pet name, description, reference images, style, package directory, output directory, and whether optional creative actions are requested. Treat every image defining the face, silhouette, palette, markings, material, proportions, or props as an identity reference.
 
-**Examples from other skills:**
-- PDF skill: `fill_fillable_fields.py`, `extract_form_field_info.py` - utilities for PDF manipulation
-- DOCX skill: `document.py`, `utilities.py` - Python modules for document processing
+### 2. Establish the base identity
 
-**Appropriate for:** Python scripts, shell scripts, or any executable code that performs automation, data processing, or specific operations.
+Run `$hatch-pet` first unless a validated Codex v2 package already exists. Its final `1536x2288` v2 atlas, `pet.json`, canonical base, contact sheet, and motion previews are the identity source of truth.
 
-**Note:** Scripts may be executed without loading into context, but can still be read by Codex for patching or environment adjustments.
+Do not generate extension actions from text alone after a base exists. Attach the canonical base and relevant approved frames to every action-strip generation.
 
-### references/
-Documentation and reference material intended to be loaded into context to inform Codex's process and thinking.
+### 3. Prepare the action run
 
-**Examples from other skills:**
-- Product management: `communication.md`, `context_building.md` - detailed workflow guides
-- BigQuery: API reference documentation and query examples
-- Finance: Schema documentation, company policies
+Run:
 
-**Appropriate for:** In-depth documentation, API references, database schemas, comprehensive guides, or any detailed information that Codex should reference while working.
+```bash
+"$PYTHON" scripts/prepare_action_run.py \
+  --pet-package /absolute/path/to/pet-package \
+  --reference /absolute/path/to/reference.png \
+  --output-dir /absolute/path/to/action-run \
+  --style-notes "<stable style notes>" \
+  --force
+```
 
-### assets/
-Files not intended to be loaded into context, but rather used within the output Codex produces.
+Add `--include-creative` only when optional actions are requested. Inspect `action-plan.json`, prompts, and generated layout guides before image generation. The default complete profile covers every current behavior state and every runtime animation cue.
 
-**Examples from other skills:**
-- Brand styling: PowerPoint template files (.pptx), logo files
-- Frontend builder: HTML/React boilerplate project directories
-- Typography: Font files (.ttf, .woff2)
+### 4. Generate action strips
 
-**Appropriate for:** Templates, boilerplate code, document templates, images, icons, fonts, or any files meant to be copied or used in the final output.
+For each pending action in `action-plan.json`:
 
----
+1. Read its prompt file.
+2. Attach every listed identity reference and its frame-count layout guide.
+3. Ask `$imagegen` for one coherent horizontal strip containing the exact ordered pose count.
+4. Require a flat chroma background, separated full-body poses, stable scale and baseline, no labels, no grid marks, no shadows, no detached effects, and no cropped parts.
+5. Save the selected strip as `decoded/<action>.png`.
+6. Extract it immediately:
 
-**Not every skill requires all three types of resources.**
+```bash
+"$PYTHON" scripts/extract_action_strip.py \
+  --strip /absolute/path/to/action-run/decoded/<action>.png \
+  --frame-count <count> \
+  --output-dir /absolute/path/to/action-run/frames/<action> \
+  --chroma-key '#FF00FF' \
+  --json-out /absolute/path/to/action-run/qa/rows/<action>.json
+```
+
+Visually inspect the extracted loop before continuing. A generated strip is not complete merely because extraction succeeded.
+
+### 5. Apply motion semantics
+
+Keep every action readable at `192x208` and honor its beat list. Use anticipation, primary action/contact, follow-through, recovery, and a clean loop or final hold as appropriate.
+
+Generate these as distinct actions, never aliases: `yawn`, `prepare-sleep`, `sleep`, `wake-up`, `eat`, `play`, and `petting`. State actions may loop according to the catalog. Runtime cues are always played once even if their source definition loops.
+
+Preserve physical continuity across sleep transitions:
+
+```text
+yawn -> prepare-sleep -> sleep -> wake-up -> idle-refined
+```
+
+Do not bake project overlays or event scenery into frames unless the action catalog explicitly requires a held/attached prop. The renderer suppresses duplicate state overlays while an extension action is active and continues to render persistent/event overlays.
+
+### 6. Assemble and validate
+
+After every required action passes:
+
+```bash
+"$PYTHON" scripts/compose_action_pack.py \
+  --run-dir /absolute/path/to/action-run \
+  --package-dir /absolute/path/to/pet-package
+```
+
+Then run:
+
+```bash
+"$PYTHON" scripts/validate_action_pack.py \
+  --package-dir /absolute/path/to/pet-package \
+  --project-root /absolute/path/to/desktop_pet_v2 \
+  --require-complete \
+  --json-out /absolute/path/to/action-run/qa/validation.json
+```
+
+The composer must produce the sidecar, a lossless action atlas, a contact sheet, per-action GIF previews, and a coverage report. The validator must verify dimensions, used/unused cells, frame durations, state mappings, runtime cues, base Codex v2 compatibility, and file safety.
+
+### 7. Visual QA
+
+Inspect the final contact sheet and every required preview at normal pet size. Reject:
+
+- identity, palette, material, proportion, face, or prop drift;
+- mechanical translation, duplicate frames, inert loops, or unclear action semantics;
+- baseline jumps, size popping, clipping, slot overlap, or transparent body holes;
+- detached effects, floor shadows, labels, guide marks, or background remnants;
+- sleep transitions that pop between unrelated body poses;
+- directional motion that faces the wrong way or reverses cadence.
+
+If one action fails, regenerate the complete containing strip. Never patch one final cell from an unrelated generation.
+
+### 8. Project verification
+
+After installing or modifying a package or runtime contract, run the project lint, typecheck, tests, and build. Run the lint autofix command when lint reports fixable issues, then rerun all checks.
+
+## Completion report
+
+Report absolute paths for the package, base atlas, action sidecar, action atlas, contact sheet, previews, coverage report, and validation report. Summarize mapped states, mapped cues, accepted optional actions, repairs, warnings, and project-check results.
+
+Do not report success when required actions use undocumented fallbacks, deterministic validation fails, or final visual QA has unresolved major defects.

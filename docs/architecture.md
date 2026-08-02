@@ -50,7 +50,7 @@ flowchart TB
 
 ### Renderer
 
-- Canvas 直接裁切 Codex 图集
+- Canvas 直接裁切 Codex 图集；存在有效动作旁车时，优先裁切项目专属动作图集
 - React 只管理设置界面和轻量 UI 状态
 - 不负责原生窗口坐标、持久化或系统权限
 
@@ -70,9 +70,11 @@ flowchart TB
 ### P2 宠物库
 
 - `PetPackageValidator` 在主进程中校验 manifest、图集尺寸、透明区、文件边界和哈希。
+- 可选 `desktop-pet-actions.json + actions.webp` 不修改 Codex manifest；校验失败时整包拒绝。
 - `PetLibrary` 只把校验后的副本写入 `userData/pets`，并保留来源标记。
 - `PetCatalog` 合并内置宠物、本地宠物和未导入的 Codex 外部条目。
-- Renderer 只通过 `pet-asset://current/spritesheet` 访问当前图集。
+- Renderer 只通过 `pet-asset://current/spritesheet` 和受限的
+  `pet-asset://current/actions` 访问当前基础图集与可选动作图集。
 - 详细边界见 `docs/p2-pet-library-and-system-integration.md`。
 
 ### P3 提醒与专注
