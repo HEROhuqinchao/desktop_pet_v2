@@ -19,6 +19,7 @@ export function SettingsApp() {
   const [conversation, setConversation] =
     useState<ConversationSettings | null>(null);
   const [displays, setDisplays] = useState<DisplayEntry[]>([]);
+  const [iconUrls, setIconUrls] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const [drafts, setDrafts] = useState({
     endpoint: '',
@@ -30,6 +31,7 @@ export function SettingsApp() {
   });
 
   useEffect(() => {
+    void window.desktopPet.getAppIconDataUrls().then(setIconUrls);
     void Promise.all([
       window.desktopPet.getSettings(),
       window.desktopPet.getReminderDashboard(),
@@ -202,10 +204,10 @@ export function SettingsApp() {
               <p className="card-hint">选择您喜欢的应用桌面/Dock图标（默认：方案三）</p>
               <div className="icon-selector-grid">
                 {[
-                  { id: 'icon3', name: '方案三：Dock猫咪', src: 'pet-asset://app-icon/icon3', isDefault: true },
-                  { id: 'icon1', name: '方案一：显示器猫', src: 'pet-asset://app-icon/icon1' },
-                  { id: 'icon2', name: '方案二：窗口招手猫', src: 'pet-asset://app-icon/icon2' },
-                  { id: 'pet', name: '当前宠物头像', src: 'pet-asset://app-icon/pet' },
+                  { id: 'icon3', name: '方案三：Dock猫咪', isDefault: true },
+                  { id: 'icon1', name: '方案一：显示器猫' },
+                  { id: 'icon2', name: '方案二：窗口招手猫' },
+                  { id: 'pet', name: '当前宠物头像' },
                 ].map((item) => (
                   <button
                     key={item.id}
@@ -214,7 +216,7 @@ export function SettingsApp() {
                     onClick={() => patchSettings({ appIcon: item.id as 'icon1' | 'icon2' | 'icon3' | 'pet' })}
                   >
                     <div className="icon-preview-box">
-                      <img src={item.src} alt={item.name} />
+                      <img src={iconUrls[item.id] || `pet-asset://app-icon/${item.id}`} alt={item.name} />
                     </div>
                     <span className="icon-option-name">{item.name}</span>
                     {item.isDefault ? <span className="icon-default-badge">默认</span> : null}

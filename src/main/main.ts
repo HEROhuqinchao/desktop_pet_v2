@@ -2774,8 +2774,40 @@ function parseGameResult(value: unknown): GameResult | null {
   };
 }
 
+function getAppIconDataUrl(name: string): string {
+  try {
+    let iconFile: string;
+    if (name === 'pet') {
+      iconFile = activePetPackage?.spritesheet ?? path.join(__dirname, '../renderer/icons/app_icon_3.png');
+    } else {
+      iconFile = path.join(__dirname, '../renderer/icons', `app_${name}.png`);
+      if (!fs.existsSync(iconFile)) {
+        iconFile = path.join(__dirname, '../renderer/public/icons', `app_${name}.png`);
+      }
+    }
+    if (!fs.existsSync(iconFile)) {
+      iconFile = path.join(__dirname, '../../build/icon.png');
+    }
+    if (fs.existsSync(iconFile)) {
+      const buf = fs.readFileSync(iconFile);
+      const ext = path.extname(iconFile).toLowerCase();
+      const mime = ext === '.webp' ? 'image/webp' : 'image/png';
+      return `data:${mime};base64,${buf.toString('base64')}`;
+    }
+  } catch (err) {
+    console.error('Failed to read icon data url:', err);
+  }
+  return '';
+}
+
 function registerIpcHandlers(): void {
   ipcMain.handle('pet:get-settings', () => ({ ...currentSettings }));
+  ipcMain.handle('pet:get-app-icon-data-urls', () => ({
+    icon1: getAppIconDataUrl('icon1'),
+    icon2: getAppIconDataUrl('icon2'),
+    icon3: getAppIconDataUrl('icon3'),
+    pet: getAppIconDataUrl('pet'),
+  }));
   ipcMain.handle('pet:get-motion-state', () => ({ ...currentMotion }));
   ipcMain.handle(
     'pet:update-settings',

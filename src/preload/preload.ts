@@ -12,6 +12,7 @@ import type {
 
 const api: DesktopPetApi = {
   getSettings: () => ipcRenderer.invoke('pet:get-settings'),
+  getAppIconDataUrls: () => ipcRenderer.invoke('pet:get-app-icon-data-urls'),
   getMotionState: () => ipcRenderer.invoke('pet:get-motion-state'),
   updateSettings: (patch) => ipcRenderer.invoke('pet:update-settings', patch),
   beginDrag: () => ipcRenderer.invoke('pet:drag-start'),

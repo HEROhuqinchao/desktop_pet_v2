@@ -595,6 +595,12 @@ export interface UpdateStatus {
 
 export interface DesktopPetApi {
   getSettings: () => Promise<PetSettings>;
+  getAppIconDataUrls: () => Promise<{
+    icon1: string;
+    icon2: string;
+    icon3: string;
+    pet: string;
+  }>;
   getMotionState: () => Promise<MotionState>;
   updateSettings: (patch: Partial<PetSettings>) => Promise<PetSettings>;
   beginDrag: () => Promise<boolean>;
