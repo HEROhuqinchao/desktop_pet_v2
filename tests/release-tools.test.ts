@@ -66,6 +66,31 @@ describe('发布工具', () => {
     ).toContain('DesktopPet-0.1.0-macOS-arm64.dmg');
   });
 
+  it('识别 electron-builder 的 Linux x64 目标架构命名', () => {
+    const root = createTemporaryDirectory();
+    writeArtifact(root, 'DesktopPet-0.1.0-Linux-x86_64.AppImage', 'appimage');
+    writeArtifact(root, 'DesktopPet-0.1.0-Linux-amd64.deb', 'deb');
+    const metadataPath = path.join(root, 'build-meta-linux-x64.json');
+
+    const result = runRelease([
+      'metadata',
+      '--platform', 'linux',
+      '--arch', 'x64',
+      '--directory', root,
+      '--output', metadataPath,
+      '--signed', 'false',
+    ]);
+
+    expect(result.status).toBe(0);
+    const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    expect(metadata.artifacts.map((artifact: { fileName: string }) => (
+      artifact.fileName
+    ))).toEqual([
+      'DesktopPet-0.1.0-Linux-amd64.deb',
+      'DesktopPet-0.1.0-Linux-x86_64.AppImage',
+    ]);
+  });
+
   it('聚合前重新校验文件哈希并生成安全下载地址', () => {
     const root = createTemporaryDirectory();
     writeArtifact(root, 'DesktopPet-0.1.0-macOS-arm64.dmg', 'dmg');

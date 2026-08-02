@@ -166,10 +166,13 @@ function mergeReleaseMetadata(values) {
 function findExpectedArtifacts(directory, platform, arch) {
   const escapedVersion = escapeRegex(version);
   const escapedArch = escapeRegex(arch);
+  const linuxArchPattern = arch === 'x64'
+    ? '(x86_64\\.AppImage|amd64\\.deb)'
+    : `${escapedArch}\\.(AppImage|deb)`;
   const patterns = {
     darwin: new RegExp(`^DesktopPet-${escapedVersion}-macOS-${escapedArch}\\.(dmg|zip)$`),
     win32: new RegExp(`^DesktopPet-${escapedVersion}-Windows-${escapedArch}-(Setup|Portable)\\.exe$`),
-    linux: new RegExp(`^DesktopPet-${escapedVersion}-Linux-${escapedArch}\\.(AppImage|deb)$`),
+    linux: new RegExp(`^DesktopPet-${escapedVersion}-Linux-${linuxArchPattern}$`),
   };
   const pattern = patterns[platform];
   if (!pattern) throw new Error(`不支持的平台：${platform}`);
