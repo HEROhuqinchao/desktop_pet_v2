@@ -367,26 +367,21 @@ function ResultDialog({
       : `命中率：${((result?.accuracy ?? 0) * 100).toFixed(1)}%`;
   return (
     <div className="result-panel" role="dialog" aria-label="小游戏结算">
-      <h2 className="result-grade">评价 {result?.grade ?? 'D'}</h2>
-      <p className="result-lines">
-        本局分数：{score}
-        <br />
-        历史最高：{completion?.record?.highScore ?? score}
-        {isNewRecord ? '  新纪录' : ''}
-        <br />
-        最大连击：{result?.maxCombo ?? 0}
-        <br />
-        {accuracyLabel}
-        <br />
-        奖励：{rewardParts.length > 0 ? rewardParts.join('、') : '本局未获得额外奖励'}
-      </p>
-      <p className="result-comment">{resultComment(gameId, result?.grade)}</p>
+      <h2 className="result-grade">评级 {result?.grade ?? 'D'}</h2>
+      <div className="result-lines">
+        <div>🎯 本局得分：<strong>{score}</strong></div>
+        <div>🏆 历史最高：<strong>{completion?.record?.highScore ?? score}</strong>{isNewRecord ? ' 🌟 新纪录!' : ''}</div>
+        <div>🔥 最大连击：<strong>{result?.maxCombo ?? 0}</strong></div>
+        <div>✨ {accuracyLabel}</div>
+        <div style={{ marginTop: '6px', color: '#f59e0b' }}>🎁 获得奖励：<strong>{rewardParts.length > 0 ? rewardParts.join('、') : '暂无'}</strong></div>
+      </div>
+      <p className="result-comment">“{resultComment(gameId, result?.grade)}”</p>
       <div className="result-actions">
         <button type="button" onClick={onReplay}>
-          再来一局
+          🔄 再来一局
         </button>
         <button type="button" onClick={onBack}>
-          返回桌面宠物
+          🏠 返回桌面宠物
         </button>
       </div>
     </div>
