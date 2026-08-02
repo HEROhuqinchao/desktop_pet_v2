@@ -309,6 +309,34 @@ async function initializePetContent(): Promise<void> {
   await refreshPetCatalog();
   await protocol.handle('pet-asset', async (request) => {
     const url = new URL(request.url);
+    if (url.host === 'app-icon') {
+      const name = url.pathname.slice(1);
+      let iconFile: string;
+      if (name === 'pet') {
+        iconFile = activePetPackage?.spritesheet ?? path.join(__dirname, '../renderer/icons/app_icon_3.png');
+      } else {
+        iconFile = path.join(__dirname, '../renderer/icons', `app_${name}.png`);
+        if (!fs.existsSync(iconFile)) {
+          iconFile = path.join(__dirname, '../renderer/public/icons', `app_${name}.png`);
+        }
+      }
+      if (!iconFile || !fs.existsSync(iconFile)) {
+        iconFile = path.join(__dirname, '../../build/icon.png');
+      }
+      if (fs.existsSync(iconFile)) {
+        const upstream = await net.fetch(pathToFileURL(iconFile).toString());
+        return new Response(upstream.body, {
+          status: upstream.status,
+          headers: {
+            'Content-Type': upstream.headers.get('content-type') ?? 'image/png',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'no-cache',
+          },
+        });
+      }
+      return new Response('Not found', { status: 404 });
+    }
+
     const assetPath =
       url.pathname === '/spritesheet'
         ? activePetPackage?.spritesheet

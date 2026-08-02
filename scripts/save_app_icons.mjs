@@ -11,8 +11,12 @@ const icon2Source = '/Users/huqinchao/.gemini/antigravity/brain/985d6549-3a63-45
 const icon3Source = '/Users/huqinchao/.gemini/antigravity/brain/985d6549-3a63-450d-a81b-0d4247823f62/pet_app_icon_3_1785683744201.jpg';
 
 const targetDir = path.join(projectRoot, 'src', 'renderer', 'public', 'icons');
+const targetDir2 = path.join(projectRoot, 'src', 'renderer', 'icons');
 if (!fs.existsSync(targetDir)) {
   fs.mkdirSync(targetDir, { recursive: true });
+}
+if (!fs.existsSync(targetDir2)) {
+  fs.mkdirSync(targetDir2, { recursive: true });
 }
 
 async function convertImage(srcPath, outPath) {
@@ -26,12 +30,15 @@ async function convertImage(srcPath, outPath) {
 async function processIcons() {
   console.log('Processing icon 1...');
   await convertImage(icon1Source, path.join(targetDir, 'app_icon_1.png'));
+  await convertImage(icon1Source, path.join(targetDir2, 'app_icon_1.png'));
 
   console.log('Processing icon 2...');
   await convertImage(icon2Source, path.join(targetDir, 'app_icon_2.png'));
+  await convertImage(icon2Source, path.join(targetDir2, 'app_icon_2.png'));
 
   console.log('Processing icon 3...');
   await convertImage(icon3Source, path.join(targetDir, 'app_icon_3.png'));
+  await convertImage(icon3Source, path.join(targetDir2, 'app_icon_3.png'));
 
   // Option 3 is default app build icon
   const buildIconPath = path.join(projectRoot, 'build', 'icon.png');

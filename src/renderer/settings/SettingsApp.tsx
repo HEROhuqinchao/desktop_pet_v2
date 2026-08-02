@@ -202,10 +202,10 @@ export function SettingsApp() {
               <p className="card-hint">选择您喜欢的应用桌面/Dock图标（默认：方案三）</p>
               <div className="icon-selector-grid">
                 {[
-                  { id: 'icon3', name: '方案三：Dock猫咪', src: '/icons/app_icon_3.png', isDefault: true },
-                  { id: 'icon1', name: '方案一：显示器猫', src: '/icons/app_icon_1.png' },
-                  { id: 'icon2', name: '方案二：窗口招手猫', src: '/icons/app_icon_2.png' },
-                  { id: 'pet', name: '当前宠物头像', src: 'pet-asset://current/spritesheet' },
+                  { id: 'icon3', name: '方案三：Dock猫咪', src: 'pet-asset://app-icon/icon3', isDefault: true },
+                  { id: 'icon1', name: '方案一：显示器猫', src: 'pet-asset://app-icon/icon1' },
+                  { id: 'icon2', name: '方案二：窗口招手猫', src: 'pet-asset://app-icon/icon2' },
+                  { id: 'pet', name: '当前宠物头像', src: 'pet-asset://app-icon/pet' },
                 ].map((item) => (
                   <button
                     key={item.id}
