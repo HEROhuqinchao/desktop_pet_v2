@@ -1,0 +1,8 @@
+{
+  "id": "gentle-night",
+  "name": "温柔夜晚",
+  "version": "1.0.0",
+  "format_version": 1,
+  "app_min_version": "0.1.0",
+  "description": "提供一组安静的夜间离线对话。"
+}

@@ -1,0 +1,61 @@
+:root {
+  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root,
+.pet-surface {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.pet-surface {
+  position: relative;
+  display: grid;
+  place-items: stretch;
+}
+
+.pet-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  filter: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.pet-canvas:active,
+.pet-canvas.is-dragging {
+  cursor: grabbing;
+}
+
+.pet-error {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  padding: 16px;
+  color: #fff;
+  font-size: 12px;
+  text-align: center;
+  background: rgb(120 24 24 / 82%);
+}

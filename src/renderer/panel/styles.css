@@ -1,0 +1,463 @@
+:root {
+  color-scheme: light;
+  --qt-window: #ececec;
+  --qt-base: #ffffff;
+  --qt-text: #1f1f1f;
+  --qt-muted: #666666;
+  --qt-border: #aeb0b3;
+  --qt-grid: #d7d7d7;
+  --qt-header: #e7e7e7;
+  --qt-button-top: #ffffff;
+  --qt-button-bottom: #e7e7e7;
+  --qt-button-hover: #f8f8f8;
+  --qt-focus: #0a84ff;
+  --qt-highlight: #0a84ff;
+  --qt-highlight-text: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'Microsoft YaHei UI', 'PingFang SC', sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--qt-window);
+  color: var(--qt-text);
+}
+
+body {
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.panel-shell {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px;
+  overflow: hidden;
+  background: var(--qt-window);
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.panel-hint {
+  margin: 0;
+  color: var(--qt-muted);
+  line-height: 1.4;
+}
+
+.panel-group {
+  margin-top: 7px;
+  padding: 13px 8px 8px;
+  border: 1px solid var(--qt-border);
+  border-radius: 4px;
+}
+
+.panel-group h2 {
+  width: max-content;
+  margin: -21px 0 7px;
+  padding: 0 4px;
+  background: var(--qt-window);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.panel-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.panel-actions.right {
+  justify-content: flex-end;
+}
+
+.panel-actions .spacer {
+  min-width: 0;
+  flex: 1;
+}
+
+button,
+input,
+select {
+  color: inherit;
+  font: inherit;
+}
+
+button {
+  min-height: 26px;
+  padding: 3px 11px;
+  border: 1px solid var(--qt-border);
+  border-radius: 5px;
+  outline: none;
+  background: linear-gradient(
+    to bottom,
+    var(--qt-button-top),
+    var(--qt-button-bottom)
+  );
+  color: var(--qt-text);
+  cursor: default;
+  white-space: nowrap;
+}
+
+button:hover:not(:disabled) {
+  background: var(--qt-button-hover);
+}
+
+button:focus-visible {
+  border-color: var(--qt-focus);
+  box-shadow: 0 0 0 1px var(--qt-focus);
+}
+
+button:active:not(:disabled) {
+  background: var(--qt-button-bottom);
+}
+
+button:disabled {
+  color: #9a9a9a;
+  opacity: 0.72;
+}
+
+button.danger,
+button.danger-plain {
+  border: 1px solid var(--qt-border);
+  border-radius: 5px;
+  background: linear-gradient(
+    to bottom,
+    var(--qt-button-top),
+    var(--qt-button-bottom)
+  );
+  color: var(--qt-text);
+  text-decoration: none;
+}
+
+input[type='text'],
+input[type='number'],
+input:not([type]) {
+  min-width: 0;
+  min-height: 25px;
+  padding: 3px 6px;
+  border: 1px solid var(--qt-border);
+  border-radius: 4px;
+  outline: none;
+  background: var(--qt-base);
+}
+
+input:focus {
+  border-color: var(--qt-focus);
+  box-shadow: 0 0 0 1px var(--qt-focus);
+}
+
+.table-viewport {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--qt-border);
+  background: var(--qt-base);
+}
+
+.panel-table {
+  width: 100%;
+  min-width: max-content;
+  border: 0;
+  border-collapse: collapse;
+  background: var(--qt-base);
+}
+
+.panel-table th,
+.panel-table td {
+  height: 25px;
+  padding: 3px 6px;
+  border-right: 1px solid var(--qt-grid);
+  border-bottom: 1px solid var(--qt-grid);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.panel-table th:last-child,
+.panel-table td:last-child {
+  border-right: 0;
+}
+
+.panel-table th {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  background: linear-gradient(to bottom, #f5f5f5, var(--qt-header));
+  font-weight: 400;
+}
+
+.panel-table.selectable tbody tr {
+  cursor: default;
+}
+
+.panel-table.selectable tbody tr[data-selected='true'] {
+  background: var(--qt-highlight);
+  color: var(--qt-highlight-text);
+}
+
+.panel-tabs {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 0;
+  border-bottom: 1px solid var(--qt-border);
+}
+
+.panel-tabs button {
+  min-height: 25px;
+  margin: 0 0 -1px;
+  padding: 3px 12px;
+  border: 1px solid var(--qt-border);
+  border-bottom-color: var(--qt-border);
+  border-radius: 5px 5px 0 0;
+  background: var(--qt-header);
+}
+
+.panel-tabs button + button {
+  margin-left: -1px;
+}
+
+.panel-tabs button[data-active='true'] {
+  z-index: 1;
+  border-bottom-color: var(--qt-base);
+  background: var(--qt-base);
+  font-weight: 400;
+}
+
+.row-actions {
+  display: flex;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+/* 状态面板 */
+.status-panel {
+  width: 320px;
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-avatar {
+  width: 76px;
+  height: 76px;
+  flex: none;
+}
+
+.status-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.status-summary {
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+}
+
+.bar-row:last-child {
+  margin-bottom: 0;
+}
+
+.bar-track {
+  position: relative;
+  height: 20px;
+  overflow: hidden;
+  border: 1px solid var(--qt-border);
+  border-radius: 2px;
+  background: var(--qt-base);
+}
+
+.bar-fill {
+  height: 100%;
+  background: #0a84ff;
+}
+
+.bar-track output {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--qt-text);
+  font-size: 12px;
+  text-shadow: 0 1px var(--qt-base);
+}
+
+/* 背包 */
+.inventory-list {
+  min-height: 0;
+  flex: 1;
+  margin: 0;
+  padding: 3px 5px;
+  overflow: auto;
+  border: 1px solid var(--qt-border);
+  border-radius: 1px;
+  background: var(--qt-base);
+  list-style: none;
+}
+
+.inventory-list li {
+  min-height: 22px;
+  padding: 2px 3px;
+}
+
+.inventory-list li[data-empty='true'] {
+  color: #8e8e8e;
+}
+
+.inventory-separator {
+  color: var(--qt-muted);
+  text-align: center;
+}
+
+/* 成长 */
+.growth-summary {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 4px 24px;
+}
+
+.growth-summary span:last-child {
+  grid-column: 1 / -1;
+}
+
+/* 专注 */
+.focus-timer {
+  margin: 0;
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.focus-panel .panel-actions input[type='number'] {
+  width: 88px;
+}
+
+/* 对话 */
+.conversation-log {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 6px 8px;
+  border: 1px solid var(--qt-border);
+  background: var(--qt-base);
+}
+
+.conversation-log p {
+  margin: 6px 0;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.conversation-input {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.conversation-input input {
+  flex: 1;
+}
+
+.conversation-panel > .danger-plain {
+  align-self: stretch;
+}
+
+/* 宠物管理 */
+.library-list {
+  min-height: 0;
+  flex: 1;
+  margin: 0;
+  padding: 2px;
+  overflow: auto;
+  border: 1px solid var(--qt-border);
+  border-radius: 1px;
+  background: var(--qt-base);
+  list-style: none;
+}
+
+.library-list li {
+  display: flex;
+  min-height: 50px;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 6px;
+  cursor: default;
+}
+
+.library-list li[data-selected='true'] {
+  background: var(--qt-highlight);
+  color: var(--qt-highlight-text);
+}
+
+.library-status {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 隐私页中的按钮由 QVBoxLayout 拉伸为整行。 */
+.privacy-panel > button,
+.content-panel > button {
+  align-self: stretch;
+}
+
+/* 改名 */
+.prompt-panel input {
+  width: 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --qt-window: #2c2c2c;
+    --qt-base: #202020;
+    --qt-text: #f2f2f2;
+    --qt-muted: #ababab;
+    --qt-border: #666666;
+    --qt-grid: #4a4a4a;
+    --qt-header: #383838;
+    --qt-button-top: #4a4a4a;
+    --qt-button-bottom: #373737;
+    --qt-button-hover: #505050;
+  }
+
+  .panel-table th {
+    background: linear-gradient(to bottom, #464646, var(--qt-header));
+  }
+}

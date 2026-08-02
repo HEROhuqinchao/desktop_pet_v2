@@ -1,0 +1,232 @@
+{
+  "duration_seconds": 60,
+  "countdown_seconds": 3,
+  "target_fps": 60,
+  "combo_timeout_seconds": 1.8,
+  "fever_combo_threshold": 20,
+  "fever_duration_seconds": 6,
+  "fever_protection_seconds": 1,
+  "fever_danger_free_seconds": 8,
+  "special_event_probability": 0.07,
+  "special_event_interval_seconds": 1,
+  "special_event_duration_seconds": 5,
+  "maximum_time_bonus_seconds": 15,
+  "grade_thresholds": [2400, 1500, 850, 350],
+  "modes": {
+    "easy": {
+      "duration_seconds": 45,
+      "speed_scale": 0.82,
+      "danger_scale": 0.55,
+      "reward_scale": 0.9
+    },
+    "standard": {
+      "duration_seconds": 60,
+      "speed_scale": 1.0,
+      "danger_scale": 1.0,
+      "reward_scale": 1.0
+    },
+    "challenge": {
+      "duration_seconds": 90,
+      "speed_scale": 1.12,
+      "danger_scale": 1.25,
+      "reward_scale": 1.25
+    }
+  },
+  "difficulty": {
+    "start": 0.1,
+    "end": 0.9,
+    "adaptive": true
+  },
+  "spawn": {
+    "min_interval_ms": 280,
+    "max_interval_ms": 850,
+    "max_active_entities": 20,
+    "pattern_seconds": 5
+  },
+  "physics": {
+    "gravity": 70,
+    "wind_strength": 25,
+    "pet_acceleration": 1600,
+    "pet_max_speed": 620,
+    "pet_friction": 0.84,
+    "mouse_follow_strength": 18
+  },
+  "effects": {
+    "magnet_duration_seconds": 6,
+    "magnet_radius": 180,
+    "double_score_duration_seconds": 5,
+    "reverse_control_duration_seconds": 3,
+    "add_time_seconds": 3,
+    "fever_score_multiplier": 1.5
+  },
+  "items": [
+    {
+      "id": "bread",
+      "name": "面包",
+      "category": "normal_food",
+      "score": 10,
+      "fall_speed": [220, 285],
+      "spawn_weight": 18,
+      "hitbox_scale": 0.78,
+      "effect": "score",
+      "color": "#E9A95B",
+      "symbol": "面"
+    },
+    {
+      "id": "apple",
+      "name": "苹果",
+      "category": "normal_food",
+      "score": 10,
+      "fall_speed": [225, 290],
+      "spawn_weight": 16,
+      "hitbox_scale": 0.75,
+      "effect": "score",
+      "color": "#EB5D58",
+      "symbol": "果"
+    },
+    {
+      "id": "cookie",
+      "name": "饼干",
+      "category": "normal_food",
+      "score": 10,
+      "fall_speed": [235, 305],
+      "spawn_weight": 15,
+      "hitbox_scale": 0.72,
+      "effect": "score",
+      "color": "#C98A4B",
+      "symbol": "饼"
+    },
+    {
+      "id": "burger",
+      "name": "汉堡",
+      "category": "premium_food",
+      "score": 30,
+      "fall_speed": [235, 310],
+      "spawn_weight": 8,
+      "hitbox_scale": 0.78,
+      "effect": "score",
+      "color": "#E7A43E",
+      "symbol": "堡"
+    },
+    {
+      "id": "cake",
+      "name": "蛋糕",
+      "category": "premium_food",
+      "score": 30,
+      "fall_speed": [225, 300],
+      "spawn_weight": 7,
+      "hitbox_scale": 0.76,
+      "effect": "score",
+      "color": "#F18EB5",
+      "symbol": "糕"
+    },
+    {
+      "id": "fried_chicken",
+      "name": "炸鸡",
+      "category": "premium_food",
+      "score": 30,
+      "fall_speed": [245, 315],
+      "spawn_weight": 7,
+      "hitbox_scale": 0.76,
+      "effect": "score",
+      "color": "#D5843D",
+      "symbol": "鸡"
+    },
+    {
+      "id": "golden_drumstick",
+      "name": "金色鸡腿",
+      "category": "rare_food",
+      "score": 100,
+      "fall_speed": [220, 300],
+      "spawn_weight": 2,
+      "hitbox_scale": 0.75,
+      "effect": "score_bonus",
+      "color": "#FFD447",
+      "symbol": "金"
+    },
+    {
+      "id": "clock",
+      "name": "小闹钟",
+      "category": "powerup",
+      "score": 20,
+      "fall_speed": [215, 280],
+      "spawn_weight": 3,
+      "hitbox_scale": 0.8,
+      "effect": "add_time",
+      "color": "#65B9E8",
+      "symbol": "+3"
+    },
+    {
+      "id": "magnet",
+      "name": "磁铁",
+      "category": "powerup",
+      "score": 20,
+      "fall_speed": [215, 280],
+      "spawn_weight": 3,
+      "hitbox_scale": 0.8,
+      "effect": "magnet",
+      "color": "#D85A64",
+      "symbol": "磁"
+    },
+    {
+      "id": "shield",
+      "name": "小盾牌",
+      "category": "powerup",
+      "score": 20,
+      "fall_speed": [215, 280],
+      "spawn_weight": 3,
+      "hitbox_scale": 0.8,
+      "effect": "shield",
+      "color": "#70A8E8",
+      "symbol": "盾"
+    },
+    {
+      "id": "double_star",
+      "name": "双倍星星",
+      "category": "powerup",
+      "score": 20,
+      "fall_speed": [215, 280],
+      "spawn_weight": 3,
+      "hitbox_scale": 0.8,
+      "effect": "double_score",
+      "color": "#AB7CE8",
+      "symbol": "×2"
+    },
+    {
+      "id": "bomb",
+      "name": "炸弹",
+      "category": "danger",
+      "score": -30,
+      "fall_speed": [245, 330],
+      "spawn_weight": 8,
+      "hitbox_scale": 0.72,
+      "effect": "bomb",
+      "color": "#44444F",
+      "symbol": "炸"
+    },
+    {
+      "id": "chili",
+      "name": "辣椒",
+      "category": "interference",
+      "score": 0,
+      "fall_speed": [245, 325],
+      "spawn_weight": 5,
+      "hitbox_scale": 0.7,
+      "effect": "reverse_control",
+      "color": "#E84343",
+      "symbol": "辣"
+    },
+    {
+      "id": "empty_plate",
+      "name": "空盘子",
+      "category": "fun",
+      "score": 0,
+      "fall_speed": [230, 300],
+      "spawn_weight": 4,
+      "hitbox_scale": 0.78,
+      "effect": "empty",
+      "color": "#D8E2EA",
+      "symbol": "空"
+    }
+  ]
+}

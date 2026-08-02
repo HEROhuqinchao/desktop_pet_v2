@@ -1,0 +1,26 @@
+[
+  {
+    "id": "bread",
+    "name": "小面包",
+    "hunger": 15,
+    "mood": 2,
+    "energy": 0,
+    "cooldown_seconds": 10
+  },
+  {
+    "id": "fries",
+    "name": "香脆薯条",
+    "hunger": 10,
+    "mood": 8,
+    "energy": 0,
+    "cooldown_seconds": 20
+  },
+  {
+    "id": "juice",
+    "name": "能量果汁",
+    "hunger": 5,
+    "mood": 3,
+    "energy": 10,
+    "cooldown_seconds": 30
+  }
+]

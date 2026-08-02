@@ -1,0 +1,534 @@
+name: Build, Sign & Release
+
+# 创建者：husu
+# workflow_dispatch 只生成短期预览 Artifact；v* 标签强制完成签名、公证和稳定 Release。
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Target platform
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - macos-arm64
+          - macos-x64
+          - windows-x64
+          - linux-x64
+          - linux-arm64
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: desktop-pet-v2-package-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      commit: ${{ steps.version.outputs.commit }}
+      mac-matrix: ${{ steps.version.outputs.mac-matrix }}
+      linux-matrix: ${{ steps.version.outputs.linux-matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install locked dependencies
+        run: npm ci --registry=https://registry.npmjs.org
+
+      - name: Resolve immutable version and source
+        id: version
+        shell: bash
+        env:
+          REQUESTED_PLATFORM: ${{ inputs.platform }}
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            node scripts/release.mjs verify --tag "$GITHUB_REF_NAME" --require-clean
+          else
+            node scripts/release.mjs verify
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          MAC_ALL='{"include":[{"arch":"arm64","runner":"macos-15"},{"arch":"x64","runner":"macos-15-intel"}]}'
+          LINUX_ALL='{"include":[{"arch":"x64","runner":"ubuntu-24.04"},{"arch":"arm64","runner":"ubuntu-24.04-arm"}]}'
+          case "${REQUESTED_PLATFORM:-all}" in
+            macos-arm64) MAC_MATRIX='{"include":[{"arch":"arm64","runner":"macos-15"}]}' ;;
+            macos-x64) MAC_MATRIX='{"include":[{"arch":"x64","runner":"macos-15-intel"}]}' ;;
+            *) MAC_MATRIX="$MAC_ALL" ;;
+          esac
+          case "${REQUESTED_PLATFORM:-all}" in
+            linux-x64) LINUX_MATRIX='{"include":[{"arch":"x64","runner":"ubuntu-24.04"}]}' ;;
+            linux-arm64) LINUX_MATRIX='{"include":[{"arch":"arm64","runner":"ubuntu-24.04-arm"}]}' ;;
+            *) LINUX_MATRIX="$LINUX_ALL" ;;
+          esac
+          echo "mac-matrix=$MAC_MATRIX" >> "$GITHUB_OUTPUT"
+          echo "linux-matrix=$LINUX_MATRIX" >> "$GITHUB_OUTPUT"
+
+      - name: Full source checks
+        run: npm run check
+
+      - name: Production dependency and vulnerability gates
+        run: |
+          npm ls --omit=dev --all
+          npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
+
+      - name: Generate release SPDX SBOM
+        shell: bash
+        run: |
+          npm --silent run sbom > desktop-pet-v2.spdx.json
+          node -e "const x=require('./desktop-pet-v2.spdx.json'); if(x.spdxVersion!=='SPDX-2.3') process.exit(1)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-sbom
+          path: desktop-pet-v2.spdx.json
+          if-no-files-found: error
+          retention-days: 7
+
+  build-macos:
+    name: Build macOS ${{ matrix.arch }}
+    needs: verify-source
+    if: >-
+      github.event_name == 'push' ||
+      inputs.platform == 'all' ||
+      startsWith(inputs.platform, 'macos-')
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.verify-source.outputs.mac-matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-source.outputs.commit }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci --registry=https://registry.npmjs.org
+      - run: npm run build
+
+      - name: Require Developer ID and notarization credentials
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER APPLE_TEAM_ID; do
+            [[ -n "${!name:-}" ]] || { echo "::error::正式 macOS 发布缺少 $name"; exit 1; }
+          done
+
+      - name: Build signed and notarized package
+        if: github.ref_type == 'tag'
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: >-
+          npx electron-builder --mac --${{ matrix.arch }}
+          --config electron-builder.yml --publish never
+          -c.mac.hardenedRuntime=true -c.mac.notarize=true
+          -c.forceCodeSigning=true
+
+      - name: Build unsigned preview package
+        if: github.ref_type != 'tag'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: >-
+          npx electron-builder --mac --${{ matrix.arch }}
+          --config electron-builder.yml --publish never
+
+      - name: Verify packaged resources and native modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=$(find release -maxdepth 4 -name "Desktop Pet.app" -type d | head -1)
+          [[ -n "$APP" ]] || { echo "::error::Desktop Pet.app missing"; exit 1; }
+          node scripts/verify-packaged-native.mjs \
+            "$APP/Contents/MacOS/Desktop Pet" "$APP/Contents/Resources"
+
+      - name: Verify Developer ID, Gatekeeper and stapling
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=$(find release -maxdepth 4 -name "Desktop Pet.app" -type d | head -1)
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          spctl --assess --verbose --type exec "$APP"
+          xcrun stapler validate "$APP"
+
+      - name: Generate platform metadata and checksums
+        shell: bash
+        run: |
+          SIGNED=false
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then SIGNED=true; fi
+          node scripts/release.mjs metadata \
+            --platform darwin --arch "${{ matrix.arch }}" \
+            --directory release \
+            --output "release/build-meta-darwin-${{ matrix.arch }}.json" \
+            --signed "$SIGNED"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distribution-darwin-${{ matrix.arch }}
+          path: |
+            release/DesktopPet-*.dmg
+            release/DesktopPet-*.zip
+            release/checksums-darwin-${{ matrix.arch }}.sha256
+            release/build-meta-darwin-${{ matrix.arch }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  build-windows:
+    name: Build Windows x64
+    needs: verify-source
+    if: >-
+      github.event_name == 'push' ||
+      inputs.platform == 'all' ||
+      inputs.platform == 'windows-x64'
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-source.outputs.commit }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci --registry=https://registry.npmjs.org
+      - run: npm run build
+
+      - name: Build unpacked Windows app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: >-
+          npx electron-builder --win --x64 --dir
+          --config electron-builder.yml --publish never
+
+      - name: Verify packaged resources and native modules
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $binary = (Get-ChildItem "release\win-unpacked\*.exe" | Select-Object -First 1).FullName
+          node scripts/verify-packaged-native.mjs $binary "release\win-unpacked\resources"
+
+      - name: Require two-stage SignPath open-source signing configuration
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          SIGNPATH_APP_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_APP_ARTIFACT_CONFIGURATION_SLUG }}
+          SIGNPATH_DISTRIBUTION_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_DISTRIBUTION_ARTIFACT_CONFIGURATION_SLUG }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $required = @(
+            "SIGNPATH_API_TOKEN",
+            "SIGNPATH_ORGANIZATION_ID",
+            "SIGNPATH_PROJECT_SLUG",
+            "SIGNPATH_SIGNING_POLICY_SLUG",
+            "SIGNPATH_APP_ARTIFACT_CONFIGURATION_SLUG",
+            "SIGNPATH_DISTRIBUTION_ARTIFACT_CONFIGURATION_SLUG"
+          )
+          $missing = @($required | Where-Object {
+            [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
+          })
+          if ($missing.Count -gt 0) { throw "正式 Windows 发布缺少：$($missing -join ', ')" }
+
+      - name: Prepare unpacked app for SignPath
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "unsigned-app\unpacked" | Out-Null
+          Copy-Item "release\win-unpacked\*" "unsigned-app\unpacked" -Recurse
+
+      - name: Upload unsigned unpacked app
+        id: unsigned-app
+        if: github.ref_type == 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: signpath-app-input-${{ github.run_id }}
+          path: unsigned-app
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign unpacked app with SignPath
+        if: github.ref_type == 'tag'
+        uses: signpath/github-action-submit-signing-request@b9d91eadd323de506c0c81cf0c7fe7438f3360fd # v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_APP_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.unsigned-app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: ${{ github.workspace }}/signed-app
+          parameters: |
+            version: ${{ toJSON(needs.verify-source.outputs.version) }}
+
+      - name: Verify signed app and build formal distributions
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\SignTool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if ($null -eq $signTool) { throw "未找到 Windows SDK SignTool.exe" }
+          $main = (Get-ChildItem "signed-app\unpacked\*.exe" | Select-Object -First 1).FullName
+          $native = @(Get-ChildItem "signed-app\unpacked\resources" -Recurse -Filter "*.node")
+          if ([string]::IsNullOrWhiteSpace($main) -or $native.Count -lt 2) {
+            throw "SignPath 返回的已签 app 结构不完整"
+          }
+          foreach ($target in @($main) + $native.FullName) {
+            & $signTool.FullName verify /pa /all /tw /v $target
+            if ($LASTEXITCODE -ne 0) { throw "app Authenticode 验证失败：$target" }
+          }
+          node scripts/verify-packaged-native.mjs $main "signed-app\unpacked\resources"
+          npx electron-builder --win --x64 --config electron-builder.yml `
+            --prepackaged "signed-app\unpacked" --publish never
+
+      - name: Build unsigned preview distributions
+        if: github.ref_type != 'tag'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: >-
+          npx electron-builder --win --x64 --config electron-builder.yml
+          --prepackaged release/win-unpacked --publish never
+
+      - name: Prepare outer packages for SignPath
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "unsigned-distribution\distribution" | Out-Null
+          Copy-Item "release\DesktopPet-*.exe" "unsigned-distribution\distribution"
+
+      - name: Upload unsigned outer packages
+        id: unsigned-distribution
+        if: github.ref_type == 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: signpath-distribution-input-${{ github.run_id }}
+          path: unsigned-distribution
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign NSIS and portable packages with SignPath
+        if: github.ref_type == 'tag'
+        uses: signpath/github-action-submit-signing-request@b9d91eadd323de506c0c81cf0c7fe7438f3360fd # v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_DISTRIBUTION_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.unsigned-distribution.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: ${{ github.workspace }}/signed-distribution
+          parameters: |
+            version: ${{ toJSON(needs.verify-source.outputs.version) }}
+
+      - name: Verify and collect signed outer packages
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $packages = @(Get-ChildItem "signed-distribution\distribution\DesktopPet-*.exe")
+          if ($packages.Count -ne 2) { throw "SignPath 必须返回 2 个已签名 Windows 发布文件" }
+          $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\SignTool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          foreach ($package in $packages) {
+            & $signTool.FullName verify /pa /all /tw /v $package.FullName
+            if ($LASTEXITCODE -ne 0) { throw "发布文件 Authenticode 验证失败：$($package.Name)" }
+          }
+          Remove-Item "release\DesktopPet-*.exe" -Force
+          Copy-Item $packages.FullName "release"
+
+      - name: Generate Windows metadata and checksums
+        shell: bash
+        run: |
+          SIGNED=false
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then SIGNED=true; fi
+          node scripts/release.mjs metadata \
+            --platform win32 --arch x64 --directory release \
+            --output release/build-meta-win32-x64.json --signed "$SIGNED"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distribution-win32-x64
+          path: |
+            release/DesktopPet-*.exe
+            release/checksums-win32-x64.sha256
+            release/build-meta-win32-x64.json
+          if-no-files-found: error
+          retention-days: 7
+
+  build-linux:
+    name: Build Linux ${{ matrix.arch }}
+    needs: verify-source
+    if: >-
+      github.event_name == 'push' ||
+      inputs.platform == 'all' ||
+      startsWith(inputs.platform, 'linux-')
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.verify-source.outputs.linux-matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-source.outputs.commit }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install Linux runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libsecret-1-0
+
+      - run: npm ci --registry=https://registry.npmjs.org
+      - run: npm run build
+
+      - name: Build AppImage and DEB
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: >-
+          npx electron-builder --linux --${{ matrix.arch }}
+          --config electron-builder.yml --publish never
+
+      - name: Verify packaged resources and native modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="release/linux-${{ matrix.arch }}-unpacked"
+          [[ -d "$ROOT" ]] || ROOT="release/linux-unpacked"
+          BIN=$(find "$ROOT" -maxdepth 1 -type f -perm -111 | head -1)
+          [[ -n "$BIN" ]] || { echo "::error::Linux executable missing"; exit 1; }
+          node scripts/verify-packaged-native.mjs "$BIN" "$ROOT/resources"
+
+      - name: Generate Linux metadata and checksums
+        run: >-
+          node scripts/release.mjs metadata
+          --platform linux --arch "${{ matrix.arch }}" --directory release
+          --output "release/build-meta-linux-${{ matrix.arch }}.json"
+          --signed false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distribution-linux-${{ matrix.arch }}
+          path: |
+            release/DesktopPet-*.AppImage
+            release/DesktopPet-*.deb
+            release/checksums-linux-${{ matrix.arch }}.sha256
+            release/build-meta-linux-${{ matrix.arch }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    if: github.ref_type == 'tag'
+    needs:
+      - verify-source
+      - build-macos
+      - build-windows
+      - build-linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-source.outputs.commit }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: distribution-*
+          path: artifacts
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-sbom
+          path: artifacts
+
+      - name: Merge and verify release manifest
+        shell: bash
+        env:
+          VERSION: ${{ needs.verify-source.outputs.version }}
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          RELEASE="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          node scripts/release.mjs merge \
+            --input artifacts --output artifacts/release-manifest.json \
+            --base-url "$BASE" --release-url "$RELEASE" \
+            --expected darwin-arm64,darwin-x64,win32-x64,linux-x64,linux-arm64 \
+            --require-signed darwin,win32
+          node -e "const x=require('./artifacts/desktop-pet-v2.spdx.json'); if(x.spdxVersion!=='SPDX-2.3') process.exit(1)"
+
+      - name: Create immutable tag release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t FILES < <(find artifacts -maxdepth 1 -type f \( \
+            -name "DesktopPet-*" -o \
+            -name "SHA256SUMS.txt" -o \
+            -name "release-manifest.json" -o \
+            -name "desktop-pet-v2.spdx.json" \
+          \) | sort)
+          [[ "${#FILES[@]}" -eq 13 ]] || {
+            printf '::error::正式发布文件数应为 13，实际 %s\n' "${#FILES[@]}"
+            printf '%s\n' "${FILES[@]}"
+            exit 1
+          }
+          gh release create "$GITHUB_REF_NAME" "${FILES[@]}" \
+            --verify-tag \
+            --title "Desktop Pet V2 ${{ needs.verify-source.outputs.version }}" \
+            --notes-file RELEASE_NOTES.md

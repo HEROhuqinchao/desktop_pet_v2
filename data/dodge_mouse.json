@@ -1,0 +1,67 @@
+{
+  "duration_seconds": 45,
+  "countdown_seconds": 3,
+  "target_fps": 60,
+  "combo_timeout_seconds": 1.5,
+  "grade_thresholds": [3500, 2400, 1500, 700],
+  "warning_radius_scale": 2.8,
+  "danger_radius_scale": 1.4,
+  "hitbox_inflate": 1.08,
+  "minimum_visible_fraction": 0.4,
+  "modes": {
+    "easy": {
+      "reaction_scale": 1.25,
+      "speed_scale": 0.82,
+      "score_scale": 0.9
+    },
+    "standard": {
+      "reaction_scale": 1.0,
+      "speed_scale": 1.0,
+      "score_scale": 1.0
+    },
+    "challenge": {
+      "reaction_scale": 0.78,
+      "speed_scale": 1.12,
+      "score_scale": 1.2
+    }
+  },
+  "reaction_time_ms": {
+    "min": 140,
+    "max": 420
+  },
+  "movement": {
+    "acceleration": 1180,
+    "walk_speed": 280,
+    "maximum_speed": 720,
+    "friction": 0.86,
+    "prediction_time_min": 0.12,
+    "prediction_time_max": 0.32
+  },
+  "dash": {
+    "speed": 950,
+    "duration_ms": 280,
+    "windup_ms": 140,
+    "cooldown_ms": 1800
+  },
+  "stamina": {
+    "maximum": 100,
+    "dash_cost": 25,
+    "recover_per_second": 12,
+    "tired_threshold": 16,
+    "tired_duration_seconds": 2.2
+  },
+  "states": {
+    "stunned_duration_seconds": 0.38,
+    "feint_duration_seconds": 0.55,
+    "brake_duration_seconds": 0.42,
+    "taunt_duration_seconds": 2,
+    "stage_duration_seconds": 3
+  },
+  "scoring": {
+    "base_hit": 100,
+    "taunt_bonus": 50,
+    "dash_bonus": 100
+  },
+  "special_event_probability": 0.08,
+  "special_event_interval_seconds": 1
+}

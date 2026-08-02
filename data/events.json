@@ -1,0 +1,72 @@
+[
+  {
+    "id": "play_dead",
+    "name": "装死事件",
+    "minimum_level": 1,
+    "weight": 12,
+    "duration_seconds": 5
+  },
+  {
+    "id": "steal_cursor",
+    "name": "偷鼠标事件",
+    "minimum_level": 2,
+    "weight": 7,
+    "duration_seconds": 5
+  },
+  {
+    "id": "zoomies",
+    "name": "发疯事件",
+    "minimum_level": 1,
+    "weight": 10,
+    "duration_seconds": 5
+  },
+  {
+    "id": "office",
+    "name": "打工事件",
+    "minimum_level": 2,
+    "weight": 8,
+    "duration_seconds": 6
+  },
+  {
+    "id": "treasure",
+    "name": "宝箱事件",
+    "minimum_level": 2,
+    "weight": 8,
+    "duration_seconds": 7
+  },
+  {
+    "id": "weather",
+    "name": "本地天气表演",
+    "minimum_level": 1,
+    "weight": 6,
+    "duration_seconds": 7
+  },
+  {
+    "id": "holiday",
+    "name": "节日彩蛋",
+    "minimum_level": 1,
+    "weight": 4,
+    "duration_seconds": 8
+  },
+  {
+    "id": "detective",
+    "name": "侦探事件",
+    "minimum_level": 3,
+    "weight": 6,
+    "duration_seconds": 7
+  },
+  {
+    "id": "fake_update",
+    "name": "假更新事件",
+    "minimum_level": 2,
+    "weight": 5,
+    "duration_seconds": 6
+  },
+  {
+    "id": "edge_adventure",
+    "name": "屏幕边缘探险",
+    "minimum_level": 2,
+    "weight": 7,
+    "duration_seconds": 7
+  }
+]

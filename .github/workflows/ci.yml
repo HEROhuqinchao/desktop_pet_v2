@@ -1,0 +1,72 @@
+name: Source Checks
+
+# 创建者：husu
+# 三个平台执行相同源码门禁；Linux 额外验证生产依赖树、审计和 SPDX SBOM。
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-pet-v2-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-24.04
+          - platform: windows-x64
+            runner: windows-2022
+          - platform: macos-arm64
+            runner: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install locked dependencies
+        run: npm ci --registry=https://registry.npmjs.org
+
+      - name: Lint, typecheck, test and build
+        run: npm run check
+
+      - name: Validate production dependency tree
+        if: runner.os == 'Linux'
+        run: npm ls --omit=dev --all
+
+      - name: Audit production dependencies
+        if: runner.os == 'Linux'
+        run: npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
+
+      - name: Generate SPDX 2.3 SBOM
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          npm --silent run sbom > desktop-pet-v2.spdx.json
+          node -e "const x=require('./desktop-pet-v2.spdx.json'); if(x.spdxVersion!=='SPDX-2.3') process.exit(1)"
+
+      - name: Upload CI SBOM
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-sbom
+          path: desktop-pet-v2.spdx.json
+          if-no-files-found: error
+          retention-days: 7

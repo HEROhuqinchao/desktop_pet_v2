@@ -1,0 +1,145 @@
+:root {
+  color: #f6f7f9;
+  background: #101217;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 720px;
+  min-height: 620px;
+  margin: 0;
+  overflow: hidden;
+  background: #101217;
+}
+
+button {
+  min-height: 34px;
+  padding: 0 15px;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 9px;
+  color: #f4f5f7;
+  font: inherit;
+  cursor: pointer;
+  background: #2c3038;
+}
+
+button:hover {
+  filter: brightness(1.12);
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.game-loading {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  color: #aeb3bd;
+}
+
+.game-shell {
+  position: relative;
+  display: grid;
+  height: 100vh;
+  grid-template-rows: 64px minmax(0, 1fr) 38px;
+}
+
+.game-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 9px 18px;
+  border-bottom: 1px solid rgb(255 255 255 / 7%);
+  background: #15181e;
+}
+
+.game-titlebar p {
+  margin: 0 0 3px;
+  color: #d8a35a;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+}
+
+.game-titlebar h1 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+
+.titlebar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+canvas {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  outline: none;
+  cursor: crosshair;
+}
+
+.game-help {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  color: #8e949f;
+  font-size: 10px;
+  background: #15181e;
+}
+
+.result-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(420px, calc(100% - 40px));
+  padding: 26px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 18px;
+  text-align: center;
+  background: rgb(20 23 29 / 94%);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 45%);
+  transform: translate(-50%, -45%);
+  backdrop-filter: blur(18px);
+}
+
+.result-grade {
+  margin: 0;
+  color: #f0c786;
+  font-size: 48px;
+  font-weight: 800;
+}
+
+.result-panel h2 {
+  margin: 5px 0 0;
+  font-size: 20px;
+}
+
+.result-panel > p:not(.result-grade) {
+  color: #a5abb5;
+  font-size: 12px;
+}
+
+.reward-line {
+  color: #f0c786 !important;
+}
+
+.result-panel > div {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.result-panel > div button {
+  flex: 1;
+}

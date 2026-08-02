@@ -1,0 +1,65 @@
+appId: com.husu.desktoppet.v2
+productName: Desktop Pet
+copyright: Copyright © 2026 husu
+
+directories:
+  output: release
+
+files:
+  - dist/**/*
+  - package.json
+
+asar: true
+asarUnpack:
+  - "**/*.node"
+
+extraResources:
+  - from: build/icon.png
+    to: icon.png
+  # 与 desktop_pet 一致的运行时数据文件（台词/人格/事件/节日/小游戏配置）
+  - from: data
+    to: data
+
+# 为 better-sqlite3 保持 npmRebuild，使原生模块始终匹配 Electron ABI；
+# @napi-rs/keyring 使用 N-API 平台预编译包，由各平台安装阶段选择对应二进制。
+npmRebuild: true
+
+mac:
+  icon: build/icon.icns
+  category: public.app-category.entertainment
+  artifactName: "DesktopPet-${version}-macOS-${arch}.${ext}"
+  # 本地预览默认不签名；正式标签由 CI 覆盖为 hardenedRuntime/notarize/forceCodeSigning。
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  notarize: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  target:
+    - dmg
+    - zip
+
+win:
+  icon: build/icon.ico
+  target:
+    - nsis
+    - portable
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false
+  artifactName: "DesktopPet-${version}-Windows-${arch}-Setup.${ext}"
+
+portable:
+  artifactName: "DesktopPet-${version}-Windows-${arch}-Portable.${ext}"
+
+linux:
+  icon: build/icon.png
+  category: Utility
+  artifactName: "DesktopPet-${version}-Linux-${arch}.${ext}"
+  target:
+    - AppImage
+    - deb

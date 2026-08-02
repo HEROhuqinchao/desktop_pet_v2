@@ -1,0 +1,30 @@
+[
+  {
+    "id": "first_touch",
+    "name": "初次见面",
+    "description": "第一次与宠物互动",
+    "condition": "interaction_count",
+    "target": 1
+  },
+  {
+    "id": "friendly_hand",
+    "name": "温柔的手",
+    "description": "累计互动 30 次",
+    "condition": "interaction_count",
+    "target": 30
+  },
+  {
+    "id": "snack_keeper",
+    "name": "饼干保管员",
+    "description": "累计喂食 10 次",
+    "condition": "feed_count",
+    "target": 10
+  },
+  {
+    "id": "week_together",
+    "name": "一周同桌",
+    "description": "连续陪伴 7 天",
+    "condition": "consecutive_days",
+    "target": 7
+  }
+]
