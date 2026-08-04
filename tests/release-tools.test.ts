@@ -26,6 +26,11 @@ const packageVersion = String(
 );
 const temporaryDirectories: string[] = [];
 
+// 统一归一化换行符：Windows runner 默认检出 CRLF，直接断言 LF 子串会误失败。
+function readRepositoryText(filePath: string): string {
+  return fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n');
+}
+
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
     fs.rmSync(directory, { recursive: true, force: true });
@@ -182,8 +187,8 @@ describe('发布工具', () => {
 
 describe('打包原生模块选择', () => {
   it('Linux 校验使用构建配置中固定的主程序名', () => {
-    const builderConfig = fs.readFileSync(builderConfigPath, 'utf8');
-    const packageWorkflow = fs.readFileSync(packageWorkflowPath, 'utf8');
+    const builderConfig = readRepositoryText(builderConfigPath);
+    const packageWorkflow = readRepositoryText(packageWorkflowPath);
 
     expect(builderConfig).toContain('executableName: desktop-pet-v2');
     expect(packageWorkflow).toContain('BIN="$ROOT/desktop-pet-v2"');
@@ -238,8 +243,8 @@ describe('打包原生模块选择', () => {
 
 describe('Microsoft Store 打包配置', () => {
   it('提供独立 AppX 目标和 Actions 预览产物', () => {
-    const builderConfig = fs.readFileSync(builderConfigPath, 'utf8');
-    const packageWorkflow = fs.readFileSync(packageWorkflowPath, 'utf8');
+    const builderConfig = readRepositoryText(builderConfigPath);
+    const packageWorkflow = readRepositoryText(packageWorkflowPath);
 
     expect(builderConfig).toContain('appx:');
     expect(builderConfig).toContain(

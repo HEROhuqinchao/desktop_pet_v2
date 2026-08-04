@@ -88,6 +88,29 @@ workflow 会先签 unpacked app，再从已签目录生成 NSIS/portable，随�
 时间戳验证。首次接入仍必须在真实 Windows 安装后检查主程序、卸载器和 portable；
 没有这次验收不能把 Windows 正式签名标记为完成。
 
+## 打标签前检查清单
+
+推送 `vX.Y.Z` 标签前逐项确认，任何一项未完成都会导致正式发布中途失败：
+
+1. `package.json` 与 lockfile 版本一致，`RELEASE_NOTES.md` 已更新为本次版本内容。
+2. macOS Secrets 六项（`MAC_CSC_LINK`、`MAC_CSC_KEY_PASSWORD`、`APPLE_API_KEY`、
+   `APPLE_API_KEY_ID`、`APPLE_API_ISSUER`、`APPLE_TEAM_ID`）已在仓库配置。
+3. SignPath 凭据（`SIGNPATH_API_TOKEN` Secret 与五个 `SIGNPATH_*` Repository
+   Variables）已配置，且 App/Distribution 两份 Artifact Configuration 已在
+   SignPath 后台创建完成。
+4. 需要随版本入库的变更已合并，标签指向的提交在 main 上且 `Source Checks` 全绿。
+5. 工作区干净（tag 触发时会执行 `--require-clean` 校验）。
+
+当前配置状态（2026-08-04 更新）：
+
+| 项 | 状态 | 说明 |
+| --- | --- | --- |
+| macOS Secrets | 未配置 | v0.1.0/v0.1.1 均失败于 `正式 macOS 发布缺少 CSC_LINK` |
+| SignPath Secret/Variables | 未配置 | v0.1.0/v0.1.1 均失败于 SignPath 配置门禁 |
+| Microsoft Store Variables | 已配置 | `electron-builder.yml` 内置正式产品标识 |
+
+在上述凭据补齐之前不要推送 `v*` 标签；`workflow_dispatch` 预览包不受影响。
+
 ## SBOM、校验和与更新清单
 
 发布包含：

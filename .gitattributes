@@ -1,0 +1,16 @@
+# 统一所有平台的换行符为 LF：
+# Windows runner 默认 autocrlf 会把文本文件检出为 CRLF，
+# 导致依赖 LF 子串的测试（如 tests/release-tools.test.ts）失败。
+* text=auto eol=lf
+
+# 二进制资源不做换行符转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.node binary
+*.zip binary
+*.dmg binary
+*.appx binary
