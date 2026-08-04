@@ -17,7 +17,10 @@ export class SleepSystem {
     return attributes.energy < 18 || (night && attributes.energy < 42);
   }
 
-  shouldWake(attributes: PetAttributes): boolean {
-    return attributes.energy >= 92;
+  shouldWake(
+    attributes: PetAttributes,
+    manuallyStarted = false,
+  ): boolean {
+    return !manuallyStarted && attributes.energy >= 92;
   }
 }

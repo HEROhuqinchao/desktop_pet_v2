@@ -237,6 +237,7 @@ const physics = new PhysicsEngine();
 const stateMachine = new PetStateMachine();
 const behaviorSelector = new BehaviorSelector();
 const recentBehaviors: PetBehaviorState[] = [];
+let manualSleepRequested = false;
 
 /* ------------------------------ 数据与资源 ------------------------------ */
 
@@ -723,7 +724,7 @@ function advanceAttributes(): void {
   if (
     state === 'SLEEP'
     && profile.sleeping
-    && sleepSystem.shouldWake(profile.attributes)
+    && sleepSystem.shouldWake(profile.attributes, manualSleepRequested)
   ) {
     petWake();
   }
@@ -1035,6 +1036,9 @@ function setBehaviorState(
   if (previous === 'EAT' && target !== 'EAT') {
     activeFood = null;
   }
+  if (isSleepingState(previous) && !isSleepingState(target)) {
+    manualSleepRequested = false;
+  }
   if (target === 'JUMP') {
     soundSystem?.play('jump');
   } else if (target === 'HAPPY') {
@@ -1271,7 +1275,7 @@ function chooseAutonomousBehavior(): void {
     attributes,
     currentSettings.autoSleep,
   )) {
-    petSleep();
+    petSleep(false);
     return;
   }
   const eventChance =
@@ -1622,10 +1626,11 @@ function playWithPetAction() {
 }
 
 /** 睡觉，对应基准 sleep()：走 YAWN → PREPARE_SLEEP → SLEEP 流程。 */
-function petSleep() {
+function petSleep(manuallyStarted = true) {
   if (isSleepingState(stateMachine.currentState)) {
     return { ok: true, message: '宠物已经在休息' };
   }
+  manualSleepRequested = manuallyStarted;
   setBehaviorState('YAWN', true);
   say('tired', '准备进入省电模式，梦里继续营业。', { emotion: 'sleepy' });
   return { ok: true, message: '宠物准备睡觉' };
@@ -1635,6 +1640,7 @@ function petWake() {
   if (!isSleepingState(stateMachine.currentState)) {
     return { ok: true, message: '宠物没有睡觉' };
   }
+  manualSleepRequested = false;
   setBehaviorState('WAKE_UP', true);
   assistantDatabase?.setPetSleeping(false);
   say('wake', '唔……启动完成，精神大概加载了七成。');
@@ -1707,7 +1713,7 @@ function buildStatusSummary(): PetStatusSummary {
       cleanliness: 90,
       curiosity: 68,
     },
-    sleeping: stateMachine.currentState === 'SLEEP',
+    sleeping: isSleepingState(stateMachine.currentState),
   };
 }
 

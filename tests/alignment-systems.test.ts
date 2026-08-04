@@ -196,6 +196,7 @@ describe('SleepSystem / EmotionSystem（对齐基准系统）', () => {
       .toBe(false);
     expect(system.shouldWake({ ...attributes, energy: 92 })).toBe(true);
     expect(system.shouldWake({ ...attributes, energy: 91 })).toBe(false);
+    expect(system.shouldWake({ ...attributes, energy: 100 }, true)).toBe(false);
   });
 
   it('情绪优先级：疲劳 > 饥饿 > 悲伤 > 临时 > 开心', () => {

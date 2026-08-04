@@ -29,6 +29,17 @@ describe('PetStateMachine', () => {
     expect(machine.update(300).completed).toBe(false);
   });
 
+  it('keeps the complete sleep transition sequence', () => {
+    const machine = new PetStateMachine('YAWN', () => 0);
+
+    expect(machine.update(0.75).completed).toBe(true);
+    expect(machine.changeState('PREPARE_SLEEP')).toBe(true);
+    expect(machine.update(0.8).completed).toBe(true);
+    expect(machine.changeState('SLEEP')).toBe(true);
+    expect(machine.update(300).completed).toBe(false);
+    expect(machine.changeState('WAKE_UP')).toBe(true);
+  });
+
   it('retains the complete 31-state definition table', () => {
     expect(Object.keys(PET_STATE_DEFINITIONS)).toHaveLength(30);
     expect(PET_STATE_DEFINITIONS.CHASE_CURSOR.moveSpeed).toBe(240);

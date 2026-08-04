@@ -23,6 +23,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--chroma-key", default="#FF00FF")
     parser.add_argument("--chroma-threshold", type=float, default=82.0)
+    parser.add_argument("--target-max-width", type=int, default=CELL_WIDTH - 10)
+    parser.add_argument("--target-max-height", type=int, default=CELL_HEIGHT - 10)
     parser.add_argument("--json-out", required=True)
     return parser.parse_args()
 
@@ -31,6 +33,10 @@ def main() -> None:
     args = parse_args()
     if args.frame_count < 1 or args.frame_count > 64:
         raise SystemExit("frame count must be 1-64")
+    if not 1 <= args.target_max_width <= CELL_WIDTH:
+        raise SystemExit(f"target max width must be 1-{CELL_WIDTH}")
+    if not 1 <= args.target_max_height <= CELL_HEIGHT:
+        raise SystemExit(f"target max height must be 1-{CELL_HEIGHT}")
     strip_path = Path(args.strip).expanduser().resolve()
     if not strip_path.is_file():
         raise SystemExit(f"missing strip: {strip_path}")
@@ -49,7 +55,11 @@ def main() -> None:
     if crops is None:
         crops = extract_slot_crops(source, args.frame_count)
         method = "equal-slots"
-    frames = fit_shared(crops)
+    frames = fit_shared(
+        crops,
+        target_max_width=args.target_max_width,
+        target_max_height=args.target_max_height,
+    )
 
     errors: list[str] = []
     warnings: list[str] = []
@@ -94,6 +104,8 @@ def main() -> None:
         "frameCount": args.frame_count,
         "cellWidth": CELL_WIDTH,
         "cellHeight": CELL_HEIGHT,
+        "targetMaxWidth": args.target_max_width,
+        "targetMaxHeight": args.target_max_height,
         "errors": errors,
         "warnings": warnings,
         "frames": reports,
@@ -253,13 +265,22 @@ def extract_slot_crops(image: Image.Image, frame_count: int) -> list[Image.Image
     return crops
 
 
-def fit_shared(crops: list[Image.Image]) -> list[Image.Image]:
+def fit_shared(
+    crops: list[Image.Image],
+    *,
+    target_max_width: int = CELL_WIDTH - 10,
+    target_max_height: int = CELL_HEIGHT - 10,
+) -> list[Image.Image]:
     nonempty = [crop for crop in crops if crop.getbbox() is not None]
     if not nonempty:
         return [Image.new("RGBA", (CELL_WIDTH, CELL_HEIGHT)) for _ in crops]
     widest = max(crop.width for crop in nonempty)
     tallest = max(crop.height for crop in nonempty)
-    scale = min((CELL_WIDTH - 10) / widest, (CELL_HEIGHT - 10) / tallest, 1.0)
+    scale = min(
+        target_max_width / widest,
+        target_max_height / tallest,
+        1.0,
+    )
     frames: list[Image.Image] = []
     for crop in crops:
         canvas = Image.new("RGBA", (CELL_WIDTH, CELL_HEIGHT), (0, 0, 0, 0))

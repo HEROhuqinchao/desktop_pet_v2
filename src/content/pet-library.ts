@@ -194,7 +194,7 @@ export class PetLibrary {
       }
       return report;
     }
-    await this.copyPackage(sourcePackage, target, 'codex', false);
+    await this.copyPackage(sourcePackage, target, 'codex', false, false);
     addSyncItem(report, {
       petId: sourcePackage.manifest.id,
       status: 'exported',
@@ -208,6 +208,7 @@ export class PetLibrary {
     target: string,
     sourceKind: PetSource,
     writeSourceMarker: boolean,
+    copyActionPack = true,
   ): Promise<void> {
     await fs.mkdir(path.dirname(target), { recursive: true });
     const temporary = await fs.mkdtemp(
@@ -222,7 +223,7 @@ export class PetLibrary {
         sourcePackage.spritesheet,
         path.join(temporary, sourcePackage.manifest.spritesheetPath),
       );
-      if (sourcePackage.actionPack) {
+      if (sourcePackage.actionPack && copyActionPack) {
         await fs.copyFile(
           sourcePackage.actionPack.manifestPath,
           path.join(temporary, ACTION_MANIFEST_FILE),

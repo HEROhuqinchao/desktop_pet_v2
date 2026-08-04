@@ -14,6 +14,7 @@ import {
   PetPackageError,
   PetPackageValidator,
 } from '../src/content/pet-package';
+import { PET_BEHAVIOR_STATES } from '../src/shared/contracts';
 
 const projectRoot = path.dirname(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -27,6 +28,25 @@ const bundledTudou = path.join(
   'tudou',
 );
 const temporaryDirectories: string[] = [];
+const REQUIRED_RUNTIME_CUES = [
+  'petting',
+  'groom',
+  'tickle',
+  'focus-complete',
+  'reminder',
+  'game-celebrate',
+  'game-finished',
+  'event-play-dead',
+  'event-steal-cursor',
+  'event-zoomies',
+  'event-office',
+  'event-treasure',
+  'event-weather',
+  'event-holiday',
+  'event-detective',
+  'event-fake-update',
+  'event-edge-adventure',
+] as const;
 
 afterEach(async () => {
   await Promise.all(
@@ -48,6 +68,19 @@ describe('PetPackageValidator', () => {
     expect(sourcePackage.manifest.id).toBe('tudou');
     expect(sourcePackage.manifest.spriteVersionNumber).toBe(2);
     expect(sourcePackage.source).toBe('bundled');
+    expect(Object.keys(sourcePackage.actionPack?.manifest.stateMap ?? {}))
+      .toHaveLength(PET_BEHAVIOR_STATES.length);
+    expect(sourcePackage.actionPack?.manifest.stateMap).toMatchObject({
+      YAWN: 'yawn',
+      PREPARE_SLEEP: 'prepare-sleep',
+      SLEEP: 'sleep',
+      WAKE_UP: 'wake-up',
+      EAT: 'eat',
+      PLAY: 'play',
+    });
+    for (const cue of REQUIRED_RUNTIME_CUES) {
+      expect(sourcePackage.actionPack?.manifest.animations[cue]).toBeDefined();
+    }
   });
 
   it('rejects manifest path traversal', async () => {

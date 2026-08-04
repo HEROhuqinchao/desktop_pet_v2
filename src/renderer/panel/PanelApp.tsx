@@ -6,6 +6,7 @@ import type {
   GrowthDashboard,
   MemoryRecord,
   PetCatalogEntry,
+  PetOperationResult,
   PetStatusSummary,
   ReminderDashboard,
 } from '../../shared/contracts';
@@ -76,12 +77,24 @@ const STATE_LABELS: Record<string, string> = {
 
 function StatusPanel() {
   const [summary, setSummary] = useState<PetStatusSummary | null>(null);
+  const [operationMessage, setOperationMessage] = useState('');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const refresh = useCallback(async () => {
     setSummary(await window.desktopPet.getStatusSummary());
   }, []);
   useAsyncRefresh(refresh, []);
+  const runOperation = useCallback(async (
+    operation: () => Promise<PetOperationResult | boolean>,
+  ) => {
+    const result = await operation();
+    setOperationMessage(
+      typeof result === 'boolean'
+        ? result ? '互动完成' : '当前无法互动'
+        : result.message,
+    );
+    await refresh();
+  }, [refresh]);
   useEffect(() => {
     const timer = setInterval(() => void refresh(), 2000);
     return () => clearInterval(timer);
@@ -146,27 +159,31 @@ function StatusPanel() {
           </div>
         ))}
       </section>
+      {operationMessage ? (
+        <p className="panel-hint" role="status">{operationMessage}</p>
+      ) : null}
       <footer className="panel-actions">
         <button
           type="button"
-          onClick={() => void window.desktopPet.feedPet('bread').then(() => refresh())}
+          onClick={() => void runOperation(() =>
+            window.desktopPet.feedPet('bread')
+          )}
         >
           喂食
         </button>
         <button
           type="button"
-          onClick={() =>
-            void (summary?.sleeping
+          onClick={() => void runOperation(() =>
+            summary?.sleeping
               ? window.desktopPet.petWake()
               : window.desktopPet.petSleep()
-            ).then(() => refresh())
-          }
+          )}
         >
           {summary?.sleeping ? '叫醒' : '睡觉'}
         </button>
         <button
           type="button"
-          onClick={() => void window.desktopPet.interact().then(() => refresh())}
+          onClick={() => void runOperation(() => window.desktopPet.interact())}
         >
           互动
         </button>
