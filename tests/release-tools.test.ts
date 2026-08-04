@@ -38,7 +38,44 @@ describe('发布工具', () => {
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain(
-      `与 package.json v${packageVersion} 不一致`,
+      `与 signed 发布要求的 v${packageVersion} 不一致`,
+    );
+  });
+
+  it('分别校验有证书与无证书发布标签', () => {
+    expect(runRelease([
+      'verify',
+      '--tag', `v${packageVersion}`,
+      '--release-mode', 'signed',
+    ]).status).toBe(0);
+    expect(runRelease([
+      'verify',
+      '--tag', `v${packageVersion}-unsigned`,
+      '--release-mode', 'unsigned',
+    ]).status).toBe(0);
+    expect(runRelease([
+      'verify',
+      '--tag', `v${packageVersion}`,
+      '--release-mode', 'unsigned',
+    ]).status).not.toBe(0);
+  });
+
+  it('提供相互隔离的有证书与无证书 Release 通道', () => {
+    const packageWorkflow = fs.readFileSync(packageWorkflowPath, 'utf8');
+
+    expect(packageWorkflow).toContain('unsigned-release');
+    expect(packageWorkflow).toContain('signed-release');
+    expect(packageWorkflow).toContain("RELEASE_MODE=unsigned");
+    expect(packageWorkflow).toContain("RELEASE_MODE=signed");
+    expect(packageWorkflow).toContain(
+      'signed/unsigned Release 必须构建 all 平台',
+    );
+    expect(packageWorkflow).toContain("RELEASE_FLAGS=(--prerelease)");
+    expect(packageWorkflow).toContain(
+      "needs.verify-source.outputs.release-mode == 'signed'",
+    );
+    expect(packageWorkflow).toContain(
+      "needs.verify-source.outputs.release-mode == 'preview'",
     );
   });
 
