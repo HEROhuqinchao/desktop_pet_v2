@@ -21,6 +21,9 @@ const packageWorkflowPath = path.join(
   'package.yml',
 );
 const packageJsonPath = path.join(projectRoot, 'package.json');
+const packageVersion = String(
+  JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')).version,
+);
 const temporaryDirectories: string[] = [];
 
 afterEach(() => {
@@ -34,13 +37,15 @@ describe('发布工具', () => {
     const result = runRelease(['verify', '--tag', 'v9.9.9']);
 
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('与 package.json v0.1.0 不一致');
+    expect(result.stderr).toContain(
+      `与 package.json v${packageVersion} 不一致`,
+    );
   });
 
   it('为平台产物生成可复核的元数据和 SHA-256', () => {
     const root = createTemporaryDirectory();
-    writeArtifact(root, 'DesktopPet-0.1.0-macOS-arm64.dmg', 'dmg');
-    writeArtifact(root, 'DesktopPet-0.1.0-macOS-arm64.zip', 'zip');
+    writeArtifact(root, `DesktopPet-${packageVersion}-macOS-arm64.dmg`, 'dmg');
+    writeArtifact(root, `DesktopPet-${packageVersion}-macOS-arm64.zip`, 'zip');
     const metadataPath = path.join(root, 'build-meta-darwin-arm64.json');
 
     const result = runRelease([
@@ -56,7 +61,7 @@ describe('发布工具', () => {
     const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
     expect(metadata).toMatchObject({
       schemaVersion: 1,
-      version: '0.1.0',
+      version: packageVersion,
       platform: 'darwin',
       arch: 'arm64',
       signed: true,
@@ -65,13 +70,17 @@ describe('发布工具', () => {
     expect(metadata.artifacts[0].sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(
       fs.readFileSync(path.join(root, 'checksums-darwin-arm64.sha256'), 'utf8'),
-    ).toContain('DesktopPet-0.1.0-macOS-arm64.dmg');
+    ).toContain(`DesktopPet-${packageVersion}-macOS-arm64.dmg`);
   });
 
   it('识别 electron-builder 的 Linux x64 目标架构命名', () => {
     const root = createTemporaryDirectory();
-    writeArtifact(root, 'DesktopPet-0.1.0-Linux-x86_64.AppImage', 'appimage');
-    writeArtifact(root, 'DesktopPet-0.1.0-Linux-amd64.deb', 'deb');
+    writeArtifact(
+      root,
+      `DesktopPet-${packageVersion}-Linux-x86_64.AppImage`,
+      'appimage',
+    );
+    writeArtifact(root, `DesktopPet-${packageVersion}-Linux-amd64.deb`, 'deb');
     const metadataPath = path.join(root, 'build-meta-linux-x64.json');
 
     const result = runRelease([
@@ -88,14 +97,18 @@ describe('发布工具', () => {
     expect(metadata.artifacts.map((artifact: { fileName: string }) => (
       artifact.fileName
     ))).toEqual([
-      'DesktopPet-0.1.0-Linux-amd64.deb',
-      'DesktopPet-0.1.0-Linux-x86_64.AppImage',
+      `DesktopPet-${packageVersion}-Linux-amd64.deb`,
+      `DesktopPet-${packageVersion}-Linux-x86_64.AppImage`,
     ]);
   });
 
   it('为 Microsoft Store AppX 生成单产物元数据', () => {
     const root = createTemporaryDirectory();
-    writeArtifact(root, 'DesktopPet-0.1.0-Windows-x64-Store.appx', 'appx');
+    writeArtifact(
+      root,
+      `DesktopPet-${packageVersion}-Windows-x64-Store.appx`,
+      'appx',
+    );
     const metadataPath = path.join(root, 'build-meta-win32-store-x64.json');
 
     const result = runRelease([
@@ -116,14 +129,14 @@ describe('发布工具', () => {
     });
     expect(metadata.artifacts).toHaveLength(1);
     expect(metadata.artifacts[0].fileName).toBe(
-      'DesktopPet-0.1.0-Windows-x64-Store.appx',
+      `DesktopPet-${packageVersion}-Windows-x64-Store.appx`,
     );
   });
 
   it('聚合前重新校验文件哈希并生成安全下载地址', () => {
     const root = createTemporaryDirectory();
-    writeArtifact(root, 'DesktopPet-0.1.0-macOS-arm64.dmg', 'dmg');
-    writeArtifact(root, 'DesktopPet-0.1.0-macOS-arm64.zip', 'zip');
+    writeArtifact(root, `DesktopPet-${packageVersion}-macOS-arm64.dmg`, 'dmg');
+    writeArtifact(root, `DesktopPet-${packageVersion}-macOS-arm64.zip`, 'zip');
     const metadataPath = path.join(root, 'build-meta-darwin-arm64.json');
     expect(runRelease([
       'metadata',
@@ -139,8 +152,8 @@ describe('发布工具', () => {
       'merge',
       '--input', root,
       '--output', manifestPath,
-      '--base-url', 'https://example.com/releases/v0.1.0',
-      '--release-url', 'https://example.com/releases/v0.1.0',
+      '--base-url', `https://example.com/releases/v${packageVersion}`,
+      '--release-url', `https://example.com/releases/v${packageVersion}`,
       '--expected', 'darwin-arm64',
       '--require-signed', 'darwin',
     ]);
@@ -151,15 +164,15 @@ describe('发布工具', () => {
     expect(manifest.artifacts[0].url).toMatch(/^https:\/\/example\.com\//);
 
     fs.appendFileSync(
-      path.join(root, 'DesktopPet-0.1.0-macOS-arm64.dmg'),
+      path.join(root, `DesktopPet-${packageVersion}-macOS-arm64.dmg`),
       'tampered',
     );
     const tampered = runRelease([
       'merge',
       '--input', root,
       '--output', manifestPath,
-      '--base-url', 'https://example.com/releases/v0.1.0',
-      '--release-url', 'https://example.com/releases/v0.1.0',
+      '--base-url', `https://example.com/releases/v${packageVersion}`,
+      '--release-url', `https://example.com/releases/v${packageVersion}`,
       '--expected', 'darwin-arm64',
     ]);
     expect(tampered.status).not.toBe(0);
