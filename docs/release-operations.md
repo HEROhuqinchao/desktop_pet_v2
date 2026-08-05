@@ -8,11 +8,25 @@
 | --- | --- | --- | --- |
 | `workflow_dispatch` | 指定平台预览包 | 允许 unsigned | 不创建，仅保留 7 天 Artifact |
 | `workflow_dispatch: windows-store-x64` | Microsoft Store AppX 预览包 | 上传商店后由 Microsoft 重签名 | 不创建，仅保留 7 天 Artifact |
+| 推送 `vX.Y.Z-unsigned` 标签 | 无证书跨平台测试版 | 不要求证书；产物明确标记 unsigned | 创建 Prerelease |
 | 推送 `vX.Y.Z` 标签 | 稳定版 | macOS 与 Windows 强制签名 | 全平台通过后创建 |
 
-正式标签必须等于 `package.json` 中的 `v${version}`，lockfile 的两个版本字段也必须
-一致。发布 job 期待 10 个安装文件：macOS arm64/x64 各 DMG+ZIP，Windows x64
-NSIS+portable，Linux x64/arm64 各 AppImage+DEB。
+稳定版标签必须等于 `package.json` 中的 `v${version}`，无证书版本标签必须等于
+`v${version}-unsigned`，lockfile 的两个版本字段也必须一致。两个 Release 通道都期待
+10 个安装文件：macOS arm64/x64 各 DMG+ZIP，Windows x64 NSIS+portable，Linux
+x64/arm64 各 AppImage+DEB。
+
+手动运行 `Build, Sign & Release` 时还可以选择 `release_mode`：
+
+- `preview`：普通短期 Artifact，不创建 Release。
+- `unsigned-release`：必须在 `vX.Y.Z-unsigned` 标签 ref 上运行，创建未签名 Prerelease。
+- `signed-release`：必须在 `vX.Y.Z` 标签 ref 上运行，强制完成签名、公证并创建稳定版。
+
+两个 Release 模式都必须选择 `all` 平台；Store AppX 仅在 `preview` 模式生成，不会混入
+GitHub Release 的跨平台产物清单。
+
+无证书通道不会读取 Apple 或 SignPath 凭据，也不会把产物标记为已签名。它适用于
+内部测试、结构验收和证书尚未配置时的下载验证，不应作为面向最终用户的可信安装包。
 
 ## GitHub 配置
 

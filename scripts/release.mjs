@@ -33,8 +33,17 @@ function verifySource(values) {
     );
   }
   const tag = optionalString(values, 'tag');
-  if (tag && tag !== `v${version}`) {
-    throw new Error(`标签 ${tag} 与 package.json v${version} 不一致`);
+  const releaseMode = optionalString(values, 'release-mode') || 'signed';
+  if (!['signed', 'unsigned'].includes(releaseMode)) {
+    throw new Error(`不支持的发布模式：${releaseMode}`);
+  }
+  const expectedTag = releaseMode === 'unsigned'
+    ? `v${version}-unsigned`
+    : `v${version}`;
+  if (tag && tag !== expectedTag) {
+    throw new Error(
+      `标签 ${tag} 与 ${releaseMode} 发布要求的 ${expectedTag} 不一致`,
+    );
   }
   for (const relative of [
     'LICENSE',

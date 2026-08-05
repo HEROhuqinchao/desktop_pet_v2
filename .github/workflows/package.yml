@@ -1,8 +1,8 @@
 name: Build, Sign & Release
 
 # 创建者：husu
-# workflow_dispatch 只生成短期预览 Artifact（含可选 Store AppX）；
-# v* 标签强制完成签名、公证和稳定 Release。
+# workflow_dispatch 可生成短期 Artifact，或在标签 ref 上显式执行 signed/unsigned Release；
+# vX.Y.Z 标签执行签名稳定版，vX.Y.Z-unsigned 标签执行无证书 Prerelease。
 
 on:
   workflow_dispatch:
@@ -20,6 +20,15 @@ on:
           - windows-store-x64
           - linux-x64
           - linux-arm64
+      release_mode:
+        description: Release mode (release modes require a matching tag ref)
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - unsigned-release
+          - signed-release
   push:
     tags:
       - "v*"
@@ -41,6 +50,7 @@ jobs:
       commit: ${{ steps.version.outputs.commit }}
       mac-matrix: ${{ steps.version.outputs.mac-matrix }}
       linux-matrix: ${{ steps.version.outputs.linux-matrix }}
+      release-mode: ${{ steps.version.outputs.release-mode }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -60,16 +70,44 @@ jobs:
         shell: bash
         env:
           REQUESTED_PLATFORM: ${{ inputs.platform }}
+          REQUESTED_RELEASE_MODE: ${{ inputs.release_mode }}
         run: |
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').version")"
-          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
-            node scripts/release.mjs verify --tag "$GITHUB_REF_NAME" --require-clean
+          RELEASE_MODE=preview
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" \
+            && ( "${GITHUB_EVENT_NAME:-}" != "workflow_dispatch" \
+              || "${REQUESTED_RELEASE_MODE:-preview}" != "preview" ) ]]; then
+            case "${REQUESTED_RELEASE_MODE:-}" in
+              signed-release) RELEASE_MODE=signed ;;
+              unsigned-release) RELEASE_MODE=unsigned ;;
+              preview|"")
+                if [[ "$GITHUB_REF_NAME" == *-unsigned ]]; then
+                  RELEASE_MODE=unsigned
+                else
+                  RELEASE_MODE=signed
+                fi
+                ;;
+              *) echo "::error::未知 release_mode：${REQUESTED_RELEASE_MODE}"; exit 1 ;;
+            esac
+            if [[ "${REQUESTED_PLATFORM:-all}" != "all" ]]; then
+              echo "::error::signed/unsigned Release 必须构建 all 平台"
+              exit 1
+            fi
+            node scripts/release.mjs verify \
+              --tag "$GITHUB_REF_NAME" \
+              --release-mode "$RELEASE_MODE" \
+              --require-clean
           else
+            if [[ "${REQUESTED_RELEASE_MODE:-preview}" != "preview" ]]; then
+              echo "::error::signed/unsigned Release 必须在匹配的标签 ref 上运行"
+              exit 1
+            fi
             node scripts/release.mjs verify
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "release-mode=$RELEASE_MODE" >> "$GITHUB_OUTPUT"
           MAC_ALL='{"include":[{"arch":"arm64","runner":"macos-15"},{"arch":"x64","runner":"macos-15-intel"}]}'
           LINUX_ALL='{"include":[{"arch":"x64","runner":"ubuntu-24.04"},{"arch":"arm64","runner":"ubuntu-24.04-arm"}]}'
           case "${REQUESTED_PLATFORM:-all}" in
@@ -133,7 +171,7 @@ jobs:
       - run: npm run build
 
       - name: Require Developer ID and notarization credentials
-        if: github.ref_type == 'tag'
+        if: needs.verify-source.outputs.release-mode == 'signed'
         shell: bash
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
@@ -149,7 +187,7 @@ jobs:
           done
 
       - name: Build signed and notarized package
-        if: github.ref_type == 'tag'
+        if: needs.verify-source.outputs.release-mode == 'signed'
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
@@ -164,7 +202,7 @@ jobs:
           -c.forceCodeSigning=true
 
       - name: Build unsigned preview package
-        if: github.ref_type != 'tag'
+        if: needs.verify-source.outputs.release-mode != 'signed'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: >-
@@ -181,7 +219,7 @@ jobs:
             "$APP/Contents/MacOS/Desktop Pet" "$APP/Contents/Resources"
 
       - name: Verify Developer ID, Gatekeeper and stapling
-        if: github.ref_type == 'tag'
+        if: needs.verify-source.outputs.release-mode == 'signed'
         shell: bash
         run: |
           set -euo pipefail
@@ -192,9 +230,11 @@ jobs:
 
       - name: Generate platform metadata and checksums
         shell: bash
+        env:
+          RELEASE_MODE: ${{ needs.verify-source.outputs.release-mode }}
         run: |
           SIGNED=false
-          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then SIGNED=true; fi
+          if [[ "$RELEASE_MODE" == "signed" ]]; then SIGNED=true; fi
           node scripts/release.mjs metadata \
             --platform darwin --arch "${{ matrix.arch }}" \
             --directory release \
@@ -250,7 +290,7 @@ jobs:
           node scripts/verify-packaged-native.mjs $binary "release\win-unpacked\resources"
 
       - name: Require two-stage SignPath open-source signing configuration
-        if: github.ref_type == 'tag'
+        if: needs.verify-source.outputs.release-mode == 'signed'
         shell: pwsh
         env:
           SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -275,7 +315,7 @@ jobs:
           if ($missing.Count -gt 0) { throw "正式 Windows 发布缺少：$($missing -join ', ')" }
 
       - name: Prepare unpacked app for SignPath
-        if: github.ref_type == 'tag'
+        if: needs.verify-source.outputs.release-mode == 'signed'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "unsigned-app\unpacked" | Out-Null
@@ -283,7 +323,7 @@ jobs:
 
       - name: Upload unsigned unpacked app
         id: unsigned-app
-        if: github.ref_type == 'tag'
+        if: needs.verify-source.outputs.release-mode == 'signed'
         uses: actions/upload-artifact@v7
         with:
           name: signpath-app-input-${{ github.run_id }}
@@ -292,7 +332,7 @@ jobs:
           retention-days: 1
 
       - name: Sign unpacked app with SignPath
-        if: github.ref_type == 'tag'
+        if: needs.verify-source.outputs.release-mode == 'signed'
         uses: signpath/github-action-submit-signing-request@b9d91eadd323de506c0c81cf0c7fe7438f3360fd # v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -308,7 +348,7 @@ jobs:
             version: ${{ toJSON(needs.verify-source.outputs.version) }}
 
       - name: Verify signed app and build formal distributions
-        if: github.ref_type == 'tag'
+        if: needs.verify-source.outputs.release-mode == 'signed'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -329,7 +369,7 @@ jobs:
             --prepackaged "signed-app\unpacked" --publish never
 
       - name: Build unsigned preview distributions
-        if: github.ref_type != 'tag'
+        if: needs.verify-source.outputs.release-mode != 'signed'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: >-
@@ -337,7 +377,7 @@ jobs:
           --prepackaged release/win-unpacked --publish never
 
       - name: Prepare outer packages for SignPath
-        if: github.ref_type == 'tag'
+        if: needs.verify-source.outputs.release-mode == 'signed'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "unsigned-distribution\distribution" | Out-Null
@@ -345,7 +385,7 @@ jobs:
 
       - name: Upload unsigned outer packages
         id: unsigned-distribution
-        if: github.ref_type == 'tag'
+        if: needs.verify-source.outputs.release-mode == 'signed'
         uses: actions/upload-artifact@v7
         with:
           name: signpath-distribution-input-${{ github.run_id }}
@@ -354,7 +394,7 @@ jobs:
           retention-days: 1
 
       - name: Sign NSIS and portable packages with SignPath
-        if: github.ref_type == 'tag'
+        if: needs.verify-source.outputs.release-mode == 'signed'
         uses: signpath/github-action-submit-signing-request@b9d91eadd323de506c0c81cf0c7fe7438f3360fd # v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -370,7 +410,7 @@ jobs:
             version: ${{ toJSON(needs.verify-source.outputs.version) }}
 
       - name: Verify and collect signed outer packages
-        if: github.ref_type == 'tag'
+        if: needs.verify-source.outputs.release-mode == 'signed'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -387,9 +427,11 @@ jobs:
 
       - name: Generate Windows metadata and checksums
         shell: bash
+        env:
+          RELEASE_MODE: ${{ needs.verify-source.outputs.release-mode }}
         run: |
           SIGNED=false
-          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then SIGNED=true; fi
+          if [[ "$RELEASE_MODE" == "signed" ]]; then SIGNED=true; fi
           node scripts/release.mjs metadata \
             --platform win32 --arch x64 --directory release \
             --output release/build-meta-win32-x64.json --signed "$SIGNED"
@@ -410,6 +452,7 @@ jobs:
     # Store 包与 GitHub Release/SignPath 通道相互独立；提交 Partner Center 后由商店重签名。
     if: >-
       github.event_name == 'workflow_dispatch' &&
+      needs.verify-source.outputs.release-mode == 'preview' &&
       (inputs.platform == 'all' || inputs.platform == 'windows-store-x64')
     runs-on: windows-2022
     timeout-minutes: 60
@@ -610,7 +653,7 @@ jobs:
           retention-days: 7
 
   release:
-    if: github.ref_type == 'tag'
+    if: needs.verify-source.outputs.release-mode != 'preview'
     needs:
       - verify-source
       - build-macos
@@ -641,20 +684,27 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ needs.verify-source.outputs.version }}
+          RELEASE_MODE: ${{ needs.verify-source.outputs.release-mode }}
         run: |
           set -euo pipefail
           BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
           RELEASE="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          SIGNING_REQUIREMENT=()
+          if [[ "$RELEASE_MODE" == "signed" ]]; then
+            SIGNING_REQUIREMENT=(--require-signed darwin,win32)
+          fi
           node scripts/release.mjs merge \
             --input artifacts --output artifacts/release-manifest.json \
             --base-url "$BASE" --release-url "$RELEASE" \
             --expected darwin-arm64,darwin-x64,win32-x64,linux-x64,linux-arm64 \
-            --require-signed darwin,win32
+            "${SIGNING_REQUIREMENT[@]}"
           node -e "const x=require('./artifacts/desktop-pet-v2.spdx.json'); if(x.spdxVersion!=='SPDX-2.3') process.exit(1)"
 
       - name: Create immutable tag release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_MODE: ${{ needs.verify-source.outputs.release-mode }}
+          VERSION: ${{ needs.verify-source.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -669,7 +719,21 @@ jobs:
             printf '%s\n' "${FILES[@]}"
             exit 1
           }
+          TITLE="Desktop Pet V2 $VERSION"
+          NOTES_FILE=RELEASE_NOTES.md
+          RELEASE_FLAGS=()
+          if [[ "$RELEASE_MODE" == "unsigned" ]]; then
+            TITLE="$TITLE Unsigned Preview"
+            NOTES_FILE=UNSIGNED_RELEASE_NOTES.md
+            RELEASE_FLAGS=(--prerelease)
+            {
+              printf '# 未签名预览版本\n\n'
+              printf '> 此版本未进行 macOS Developer ID 签名、公证或 Windows Authenticode 签名，仅供测试。\n\n'
+              cat RELEASE_NOTES.md
+            } > "$NOTES_FILE"
+          fi
           gh release create "$GITHUB_REF_NAME" "${FILES[@]}" \
             --verify-tag \
-            --title "Desktop Pet V2 ${{ needs.verify-source.outputs.version }}" \
-            --notes-file RELEASE_NOTES.md
+            --title "$TITLE" \
+            --notes-file "$NOTES_FILE" \
+            "${RELEASE_FLAGS[@]}"
