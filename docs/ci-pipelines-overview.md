@@ -3,9 +3,11 @@
 创建者：husu
 
 基线：分支 `fix/ci-cross-platform-release-gates`（2026-08-05，已并入
-`7bbed85` 的 signed/unsigned 发布模式拆分）。项目当前共有 6 条 GitHub
-Actions 流水线、3 份 `.github/` 配置与 2 个发布脚本工具。本文逐一说明
-它们的定位、触发方式、执行内容与相互协作关系；优缺点评估与改造路线见
+`7bbed85` 的 signed/unsigned 发布模式拆分，并完成 P1-1/P1-2/P1-3 与
+P2-1/P2-2/P2-3 改造）。项目当前共有 6 条 GitHub Actions 流水线、
+1 个共享 composite action、2 份 `.github/` 配置与 2 个发布脚本工具；
+所有第一方 action 均钉死 commit SHA。本文逐一说明它们的定位、触发
+方式、执行内容与相互协作关系；优缺点评估与改造路线见
 [`ci-pipeline-analysis.md`](./ci-pipeline-analysis.md) 与
 [`ci-pipeline-improvement-plan.md`](./ci-pipeline-improvement-plan.md)。
 
@@ -19,9 +21,9 @@ Actions 流水线、3 份 `.github/` 配置与 2 个发布脚本工具。本文�
 | 4 | `workflows/package.yml`（Build, Sign & Release） | workflow | preview/unsigned/signed 三模式构建与发布的唯一通道 |
 | 5 | `workflows/dependency-monitor.yml`（Dependency Monitor） | workflow | 每周依赖健康巡检与自动告警闭环 |
 | 6 | `workflows/package-smoke.yml`（Package Smoke） | workflow | 每周打包冒烟，提前暴露打包链路回归 |
-| 7 | `dependabot.yml` | 配置 | npm 与 Actions 依赖的周度自动更新 |
-| 8 | `codeql-config.yml` | 配置 | CodeQL 分析范围（排除产物目录） |
-| 9 | `release.yml` | 配置 | 自动 Release Notes 分类（当前为死配置，见文末） |
+| 7 | `actions/setup-env`（Setup environment） | composite | checkout + Node 22 + npm ci 的公共初始化，Node 版本单一事实来源 |
+| 8 | `dependabot.yml` | 配置 | npm 与 Actions 依赖的周度自动更新 |
+| 9 | `codeql-config.yml` | 配置 | CodeQL 分析范围（排除产物目录） |
 
 ## 阶段协作视图
 
@@ -114,6 +116,15 @@ Artifact）。所有下游 job 一律 checkout 它输出的精确 commit，并�
 `release-mode` 而非 ref 类型决定是否走签名路径，保证"验证过的源码
 == 打包的源码"。
 
+### release-approval（P1-1 人工审批闸门）
+
+仅 `release-mode == 'signed'` 时运行，引用受保护 environment
+`release`：在后台配置 Required reviewers 后，签名发布必须人工批准才会
+开始构建，等待审批不消耗 runner 时间。preview/unsigned 模式下该 job
+skipped，`build-macos`/`build-windows` 以
+`result == 'success' || 'skipped'` 显式放行，`release` job 经依赖链
+间接被闸门保护。
+
 ### build-macos
 
 arm64（`macos-15`）与 x64（`macos-15-intel`）双架构矩阵。signed 模式
@@ -160,9 +171,11 @@ x64（`ubuntu-24.04`）与 arm64（`ubuntu-24.04-arm`）双架构矩阵，安装
 `scripts/release.mjs merge`：按 SHA-256 逐文件复核哈希与大小、强制五
 平台（darwin-arm64/x64、win32-x64、linux-x64/arm64）齐全；signed 模式
 追加 `--require-signed darwin,win32`，unsigned 模式允许未签名产物。
-生成 `release-manifest.json` 与 `SHA256SUMS.txt` 后，
-`gh release create --verify-tag` 发布 13 个文件（10 个安装包 +
-checksums 清单 + manifest + SBOM），防止覆盖已有 Release：
+生成 `release-manifest.json` 与 `SHA256SUMS.txt` 后，先对全部安装包
+生成构建溯源证明（`actions/attest-build-provenance`，P1-3），再
+`gh release create --verify-tag` 发布"manifest 产物数 + 3"个文件
+（安装包 + checksums 清单 + manifest + SBOM；数量由 manifest 推导，
+不再硬编码），防止覆盖已有 Release：
 
 - signed：稳定 Release，标题 `Desktop Pet V2 <version>`；
 - unsigned：`--prerelease` 标记的 Prerelease，标题追加
@@ -223,12 +236,12 @@ ABI → 唯一性断言（AppImage/DEB 各恰好 1 个）→ `release.mjs metada
 - github-actions 生态，每周一：上限 5 个并行 PR，用于跟进
   checkout/setup-node/artifact 等 action 的版本与 SHA 更新。
 
-## 8. release.yml（自动 Release Notes 配置）
+## 8. release.yml（已删除）
 
-定义了按标签分类（新功能/修复/其他变更）的自动变更日志。**当前为死
-配置**：正式 Release 由 `gh release create --notes-file
-RELEASE_NOTES.md` 创建，不会使用自动 notes。改造方案 P2-3 建议删除；
-若未来改回 `--generate-notes`，此配置才会生效。
+原"自动 Release Notes 分类"配置从未生效（正式 Release 由
+`gh release create --notes-file RELEASE_NOTES.md` 创建），已按改造方案
+P2-3 于 2026-08-05 删除；若未来改回 `--generate-notes`，再连同配置
+一起引入。
 
 ## 发布脚本工具（被流水线复用）
 
@@ -256,6 +269,6 @@ Package Smoke 持续预演打包链路 → 推 `vX.Y.Z-unsigned` 标签产出未
 Prerelease 供真实环境验收 → 凭据就绪后推 `vX.Y.Z` 标签 → 失败关闭的
 签名/公证/哈希复核 → 不可变的稳定 GitHub Release。
 
-已知限制（详见改造方案）：签名 job 尚无 environment 审批闸门；第一方
-action 尚未全部钉 SHA；无构建溯源 attestation；`release` job 存在
-"13 个文件"硬编码；无 electron-updater 更新 feed。
+已知限制（详见改造方案）：`release` environment 的 Required reviewers
+与 main 分支保护（P1-4）待在 GitHub 后台配置后才真正生效；无
+electron-updater 更新 feed；定时流水线仅在合入默认分支后才会触发。

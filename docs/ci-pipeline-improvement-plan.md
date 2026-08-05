@@ -10,11 +10,11 @@
 
 | 优先级 | 目标 | 状态 |
 | --- | --- | --- |
-| P0 | Windows CI 转绿；发布前置条件文档化 | 已完成（代码）/ 凭据待配置 |
-| P1 | 签名凭据加人工闸门；action 钉 SHA；构建溯源 | 待实施 |
-| P2 | 去重门禁；消除魔法数字；清理死配置 | 待实施 |
+| P0 | Windows CI 转绿；发布前置条件文档化 | 代码完成于未合并分支（已推送，PR 未创建，main 仍红）；凭据待配置 |
+| P1 | 签名凭据加人工闸门；action 钉 SHA；构建溯源；main 分支保护 | P1-1/P1-2/P1-3 已在分支实施；P1-4 待 GitHub 后台配置 |
+| P2 | 去重门禁；消除魔法数字；清理死配置 | P2-1/P2-2/P2-3 已在分支实施；P2-4 维持保守方案 |
 | P3 | 自动更新通道；runner 风险预案；CODEOWNERS | 规划中 |
-| 能力补齐 | CodeQL、依赖审查、每周依赖监控、打包冒烟、Dependabot | 已完成 |
+| 能力补齐 | CodeQL、依赖审查、每周依赖监控、打包冒烟、Dependabot | 已完成（配置），合入 main 后才真实生效 |
 
 ## P0：止血（已完成）
 
@@ -36,6 +36,24 @@
 
 验收（人工）：在 GitHub 仓库 Settings → Secrets and variables → Actions
 补齐凭据后，将状态表更新为"已配置"，再推送下一个版本标签。
+
+### P0-C 建 PR 合并修复，让新流水线真实生效（2026-08-05 复查新增）
+
+截至复查日，修复分支 `fix/ci-cross-platform-release-gates`（`666a524`）
+已推送但没有 PR、零 CI 运行；main 仍因 Windows CRLF 失败（最近 run
+30915146935，注解 `tests/release-tools.test.ts:291`）。同时 GitHub 的
+`schedule` 触发只在默认分支生效——合入 main 之前，CodeQL 周一兜底、
+Dependency Monitor、Package Smoke 三条定时流水线都处于"写了但不会跑"
+状态，四条新流水线在 GitHub 上的运行次数全部为 0。
+
+- 为修复分支创建 PR 并合并，确认三平台 Source Checks 转绿；
+- 合并后对 CodeQL、Dependency Monitor、Package Smoke 各手动
+  `workflow_dispatch` 一次，验证线上可运行（Dependency Review 随下一个
+  PR 自动验证）；
+- 合并后第一个周一确认定时任务自动触发。
+
+验收：main 的 `Check windows-x64` 转绿；四条新流水线各有至少一次
+GitHub 侧成功运行记录。
 
 ## 已实施：能力补齐流水线
 
@@ -89,6 +107,16 @@ preview 与 unsigned 模式不受影响，因为签名步骤只在
 验收：推送测试 `vX.Y.Z` 标签后，signed 模式的签名 job 停在等待审批
 状态，批准前不出现任何签名凭据调用日志。
 
+实施记录（2026-08-05）：实际采用独立审批 gate job `release-approval`
+（仅 signed 模式运行、引用 `release` environment），而不是在三个 job 上
+直接挂 `environment:`。原因：`environment:` 是 job 级闸门，会把
+preview/unsigned 构建一并拦下；且 environment 表达式返回空串会报
+"Invalid environment name"，无法做条件豁免。现实现中
+`build-macos`/`build-windows` 依赖 `release-approval`，以
+`result == 'success' || 'skipped'` 显式放行 preview/unsigned；
+`release` job 经依赖链间接被闸门保护。后台为 `release` environment
+配置 Required reviewers 后闸门才真正生效。
+
 ### P1-2 第一方 action 统一钉 SHA
 
 将 `actions/checkout`、`actions/setup-node`、`actions/upload-artifact`、
@@ -103,6 +131,12 @@ action 的钉法一致，例如：
 （已通过 `.github/dependabot.yml` 启用，见"已实施：能力补齐流水线"）。
 
 验收：`grep -R "uses: actions/" .github` 不再出现裸大版本标签。
+
+实施记录（2026-08-05）：checkout/setup-node/upload-artifact/
+download-artifact/github-script/codeql-action/dependency-review-action
+已全部钉 SHA + 版本注释。过程中发现 `dependency-review-action` 不存在
+`@v4` 浮动标签（原写法首次运行即会失败），已钉死 v4.9.0 提交。
+composite action 内的引用同样钉 SHA。
 
 ### P1-3 构建溯源证明
 
@@ -123,6 +157,28 @@ action 的钉法一致，例如：
 
 验收：Release 资产页可见 attestation；`gh api` 或 Sigstore 可验证产物
 构建来源指向本仓库的 tag workflow。
+
+实施记录（2026-08-05）：`release` job 增加 `id-token: write` 与
+`attestations: write` 权限，在 manifest 复核之后对
+`artifacts/DesktopPet-*` 全部安装包生成证明（action 钉 v4.1.1 SHA）。
+public 仓库 attestation 免费。
+
+### P1-4 main 分支保护（2026-08-05 复查新增）
+
+复查确认 main 既无 branch protection 也无 Rulesets
+（`GET /branches/main/protection` 返回 404）：所有 PR 门禁均为建议性，
+直接 push main 即可绕过 Source Checks / CodeQL / Dependency Review。
+在 Settings → Rules → Rulesets（或旧版 Branches）为 main 配置：
+
+- Require a pull request before merging（至少 1 名评审，可与 P3-3
+  CODEOWNERS 叠加）；
+- Require status checks to pass，必选：`Check linux-x64`、
+  `Check windows-x64`、`Check macos-arm64`、`Analyze
+  JavaScript/TypeScript`、`Review dependency changes`；
+- 勾选 Include administrators，管理员也不能绕过；
+- （可选）禁止 force push 与分支删除。
+
+验收：直接 push main 被拒绝；PR 在必选检查全绿前不可合并。
 
 ## P2：结构优化
 
@@ -151,6 +207,13 @@ runs:
 Node 版本也随之有了单一事实来源。验收：两个 workflow 中不再出现重复
 的 setup-node/npm ci 配置块。
 
+实施记录（2026-08-05）：`.github/actions/setup-env/action.yml` 已落地，
+提供 `ref`/`fetch-depth`/`install-deps` 三个输入；Source Checks、
+Build Sign & Release（含 release job 的 `install-deps: false` 用法）、
+Dependency Monitor、Package Smoke 全部改用该 composite。CodeQL 只需
+checkout，保持内联。libsecret 运行时库安装移到 npm ci 之后（仅运行
+打包产物时需要，ci.yml 的 Linux 腿本就未装该库也能完成安装与构建）。
+
 ### P2-2 消除魔法数字与首匹配陷阱
 
 - `release` job 的"文件数应为 13"改为按 `--expected` 平台列表与
@@ -163,6 +226,12 @@ Node 版本也随之有了单一事实来源。验收：两个 workflow 中不�
 
 验收：单测/演练中故意多放一个同名文件，脚本显式失败。
 
+实施记录（2026-08-05）：`release` job 的文件数改为
+`release-manifest.json` 的 `artifacts.length + 3`（SHA256SUMS +
+manifest + SBOM）推导；macOS 两处 `find ... | head -1` 与 Windows
+三处 `Select-Object -First 1` 产物查找全部改为"数量必须为 1"的
+唯一性断言，多产物时显式报错。
+
 ### P2-3 清理死配置
 
 删除 `.github/release.yml`（自动 notes 从未生效，Release 使用
@@ -170,6 +239,9 @@ Node 版本也随之有了单一事实来源。验收：两个 workflow 中不�
 `gh release create --generate-notes` 一起引入。
 
 验收：删除后正式发布流程演练不受影响。
+
+实施记录（2026-08-05）：`.github/release.yml` 已在分支上 `git rm`
+删除（历史中可随时找回）。
 
 ### P2-4（可选）去重发布前置门禁
 
@@ -212,12 +284,13 @@ Node 版本也随之有了单一事实来源。验收：两个 workflow 中不�
 
 ## 实施顺序建议
 
-1. 合并 P0 分支，确认 PR 的三平台 CI 全绿。
+1. 为 P0 分支创建 PR 并合并（P0-C），确认三平台 CI 全绿；合并后手动
+   dispatch 验证四条新流水线各跑通一次，并等第一个周一确认定时触发。
 2. 在 GitHub 后台补齐 macOS 与 SignPath 凭据，更新
    `release-operations.md` 状态表。
-3. 单独分支实施 P1（environment 审批 + SHA 钉版本 + attestation），
-   用一次 `v0.1.2` 真实发布作为端到端验收：首次走通签名、公证、
-   SignPath 两阶段与 Release 创建。
+3. 单独分支实施 P1（environment 审批 + SHA 钉版本 + attestation +
+   main 分支保护 P1-4），用一次 `v0.1.2` 真实发布作为端到端验收：首次
+   走通签名、公证、SignPath 两阶段与 Release 创建。
 4. P2 随日常迭代分批合入，每项独立提交便于回滚。
 5. P3 按产品需求排期。
 

@@ -1,0 +1,40 @@
+name: Setup environment
+description: Checkout the repository, install Node 22 and locked npm dependencies
+
+# 创建者：husu
+# 公共初始化：checkout + Node 22 + npm ci（锁定依赖）。
+# 各流水线统一引用本 action，避免 Node 版本与安装命令在多处漂移。
+# Node 版本以本文件为单一事实来源。
+
+inputs:
+  ref:
+    description: 检出目标（commit/分支/标签）；留空则检出触发 ref
+    required: false
+    default: ""
+  fetch-depth:
+    description: 拉取的提交深度（0 表示完整历史）
+    required: false
+    default: "1"
+  install-deps:
+    description: 是否执行 npm ci（仅 checkout/Node 的场景可设为 false）
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ inputs.ref || github.ref }}
+        fetch-depth: ${{ inputs.fetch-depth }}
+
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: 22
+        cache: npm
+        registry-url: https://registry.npmjs.org
+
+    - name: Install locked dependencies
+      if: inputs.install-deps == 'true'
+      run: npm ci --registry=https://registry.npmjs.org
+      shell: bash

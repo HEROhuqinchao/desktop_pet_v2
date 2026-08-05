@@ -20,9 +20,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/dependency-review-action@v4
+      # 注意：该 action 不存在 @v4 浮动标签（此前写法首次运行即会失败），钉死 v4.9.0 提交
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
         with:
           # 与发布门禁一致：高危漏洞阻断 PR，中低危仅提示
           fail-on-severity: high

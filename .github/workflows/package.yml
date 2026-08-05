@@ -52,18 +52,9 @@ jobs:
       linux-matrix: ${{ steps.version.outputs.linux-matrix }}
       release-mode: ${{ steps.version.outputs.release-mode }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-env
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-          registry-url: https://registry.npmjs.org
-
-      - name: Install locked dependencies
-        run: npm ci --registry=https://registry.npmjs.org
 
       - name: Resolve immutable version and source
         id: version
@@ -105,9 +96,11 @@ jobs:
             fi
             node scripts/release.mjs verify
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "release-mode=$RELEASE_MODE" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$VERSION"
+            echo "commit=$(git rev-parse HEAD)"
+            echo "release-mode=$RELEASE_MODE"
+          } >> "$GITHUB_OUTPUT"
           MAC_ALL='{"include":[{"arch":"arm64","runner":"macos-15"},{"arch":"x64","runner":"macos-15-intel"}]}'
           LINUX_ALL='{"include":[{"arch":"x64","runner":"ubuntu-24.04"},{"arch":"arm64","runner":"ubuntu-24.04-arm"}]}'
           case "${REQUESTED_PLATFORM:-all}" in
@@ -120,8 +113,10 @@ jobs:
             linux-arm64) LINUX_MATRIX='{"include":[{"arch":"arm64","runner":"ubuntu-24.04-arm"}]}' ;;
             *) LINUX_MATRIX="$LINUX_ALL" ;;
           esac
-          echo "mac-matrix=$MAC_MATRIX" >> "$GITHUB_OUTPUT"
-          echo "linux-matrix=$LINUX_MATRIX" >> "$GITHUB_OUTPUT"
+          {
+            echo "mac-matrix=$MAC_MATRIX"
+            echo "linux-matrix=$LINUX_MATRIX"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Full source checks
         run: npm run check
@@ -137,37 +132,49 @@ jobs:
           npm --silent run sbom > desktop-pet-v2.spdx.json
           node -e "const x=require('./desktop-pet-v2.spdx.json'); if(x.spdxVersion!=='SPDX-2.3') process.exit(1)"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-sbom
           path: desktop-pet-v2.spdx.json
           if-no-files-found: error
           retention-days: 7
 
+  release-approval:
+    name: Require approval for signed release
+    needs: verify-source
+    # P1-1 人工审批闸门：仅 signed 模式引用受保护 environment release，
+    # 在仓库 Settings → Environments → release 配置 Required reviewers 后，
+    # 签名发布必须经人工批准才会开始构建。preview/unsigned 模式本 job
+    # 直接 skipped，下游以 result 判断放行。等待审批不计入运行时间，
+    # 故本 job 不设 timeout-minutes。
+    if: needs.verify-source.outputs.release-mode == 'signed'
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - name: Signed release approved
+        run: echo "Signed release approved via the release environment."
+
   build-macos:
     name: Build macOS ${{ matrix.arch }}
-    needs: verify-source
+    needs:
+      - verify-source
+      - release-approval
     if: >-
-      github.event_name == 'push' ||
+      needs.verify-source.result == 'success' &&
+      (needs.release-approval.result == 'success' || needs.release-approval.result == 'skipped') &&
+      (github.event_name == 'push' ||
       inputs.platform == 'all' ||
-      startsWith(inputs.platform, 'macos-')
+      startsWith(inputs.platform, 'macos-'))
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.verify-source.outputs.mac-matrix) }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-env
         with:
           ref: ${{ needs.verify-source.outputs.commit }}
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-          registry-url: https://registry.npmjs.org
-
-      - run: npm ci --registry=https://registry.npmjs.org
       - run: npm run build
 
       - name: Require Developer ID and notarization credentials
@@ -213,8 +220,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APP=$(find release -maxdepth 4 -name "Desktop Pet.app" -type d | head -1)
-          [[ -n "$APP" ]] || { echo "::error::Desktop Pet.app missing"; exit 1; }
+          APP_COUNT=$(find release -maxdepth 4 -name "Desktop Pet.app" -type d | wc -l | tr -d ' ')
+          [[ "$APP_COUNT" -eq 1 ]] || { echo "::error::Desktop Pet.app 数量应为 1，实际 $APP_COUNT"; exit 1; }
+          APP=$(find release -maxdepth 4 -name "Desktop Pet.app" -type d)
           node scripts/verify-packaged-native.mjs \
             "$APP/Contents/MacOS/Desktop Pet" "$APP/Contents/Resources"
 
@@ -223,7 +231,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APP=$(find release -maxdepth 4 -name "Desktop Pet.app" -type d | head -1)
+          APP_COUNT=$(find release -maxdepth 4 -name "Desktop Pet.app" -type d | wc -l | tr -d ' ')
+          [[ "$APP_COUNT" -eq 1 ]] || { echo "::error::Desktop Pet.app 数量应为 1，实际 $APP_COUNT"; exit 1; }
+          APP=$(find release -maxdepth 4 -name "Desktop Pet.app" -type d)
           codesign --verify --deep --strict --verbose=2 "$APP"
           spctl --assess --verbose --type exec "$APP"
           xcrun stapler validate "$APP"
@@ -241,7 +251,7 @@ jobs:
             --output "release/build-meta-darwin-${{ matrix.arch }}.json" \
             --signed "$SIGNED"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: distribution-darwin-${{ matrix.arch }}
           path: |
@@ -254,25 +264,22 @@ jobs:
 
   build-windows:
     name: Build Windows x64
-    needs: verify-source
+    needs:
+      - verify-source
+      - release-approval
     if: >-
-      github.event_name == 'push' ||
+      needs.verify-source.result == 'success' &&
+      (needs.release-approval.result == 'success' || needs.release-approval.result == 'skipped') &&
+      (github.event_name == 'push' ||
       inputs.platform == 'all' ||
-      inputs.platform == 'windows-x64'
+      inputs.platform == 'windows-x64')
     runs-on: windows-2022
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-env
         with:
           ref: ${{ needs.verify-source.outputs.commit }}
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-          registry-url: https://registry.npmjs.org
-
-      - run: npm ci --registry=https://registry.npmjs.org
       - run: npm run build
 
       - name: Build unpacked Windows app
@@ -286,8 +293,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $binary = (Get-ChildItem "release\win-unpacked\*.exe" | Select-Object -First 1).FullName
-          node scripts/verify-packaged-native.mjs $binary "release\win-unpacked\resources"
+          $exes = @(Get-ChildItem "release\win-unpacked\*.exe")
+          if ($exes.Count -ne 1) { throw "win-unpacked 主 exe 数量应为 1，实际 $($exes.Count)" }
+          node scripts/verify-packaged-native.mjs $exes[0].FullName "release\win-unpacked\resources"
 
       - name: Require two-stage SignPath open-source signing configuration
         if: needs.verify-source.outputs.release-mode == 'signed'
@@ -324,7 +332,7 @@ jobs:
       - name: Upload unsigned unpacked app
         id: unsigned-app
         if: needs.verify-source.outputs.release-mode == 'signed'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: signpath-app-input-${{ github.run_id }}
           path: unsigned-app
@@ -355,11 +363,12 @@ jobs:
           $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\SignTool.exe" |
             Sort-Object FullName -Descending | Select-Object -First 1
           if ($null -eq $signTool) { throw "未找到 Windows SDK SignTool.exe" }
-          $main = (Get-ChildItem "signed-app\unpacked\*.exe" | Select-Object -First 1).FullName
+          $mains = @(Get-ChildItem "signed-app\unpacked\*.exe")
           $native = @(Get-ChildItem "signed-app\unpacked\resources" -Recurse -Filter "*.node")
-          if ([string]::IsNullOrWhiteSpace($main) -or $native.Count -lt 2) {
-            throw "SignPath 返回的已签 app 结构不完整"
+          if ($mains.Count -ne 1 -or $native.Count -lt 2) {
+            throw "SignPath 返回的已签 app 结构不完整（exe $($mains.Count) 个，.node $($native.Count) 个）"
           }
+          $main = $mains[0].FullName
           foreach ($target in @($main) + $native.FullName) {
             & $signTool.FullName verify /pa /all /tw /v $target
             if ($LASTEXITCODE -ne 0) { throw "app Authenticode 验证失败：$target" }
@@ -386,7 +395,7 @@ jobs:
       - name: Upload unsigned outer packages
         id: unsigned-distribution
         if: needs.verify-source.outputs.release-mode == 'signed'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: signpath-distribution-input-${{ github.run_id }}
           path: unsigned-distribution
@@ -436,7 +445,7 @@ jobs:
             --platform win32 --arch x64 --directory release \
             --output release/build-meta-win32-x64.json --signed "$SIGNED"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: distribution-win32-x64
           path: |
@@ -457,17 +466,10 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-env
         with:
           ref: ${{ needs.verify-source.outputs.commit }}
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-          registry-url: https://registry.npmjs.org
-
-      - run: npm ci --registry=https://registry.npmjs.org
       - run: npm run build
 
       - name: Build unpacked Windows app
@@ -481,8 +483,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $binary = (Get-ChildItem "release\win-unpacked\*.exe" | Select-Object -First 1).FullName
-          node scripts/verify-packaged-native.mjs $binary "release\win-unpacked\resources"
+          $exes = @(Get-ChildItem "release\win-unpacked\*.exe")
+          if ($exes.Count -ne 1) { throw "win-unpacked 主 exe 数量应为 1，实际 $($exes.Count)" }
+          node scripts/verify-packaged-native.mjs $exes[0].FullName "release\win-unpacked\resources"
 
       - name: Build Microsoft Store AppX
         shell: pwsh
@@ -576,7 +579,7 @@ jobs:
           --output release/build-meta-win32-store-x64.json
           --signed false
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: distribution-win32-store-x64
           path: |
@@ -599,22 +602,15 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.verify-source.outputs.linux-matrix) }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-env
         with:
           ref: ${{ needs.verify-source.outputs.commit }}
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-          registry-url: https://registry.npmjs.org
 
       - name: Install Linux runtime libraries
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y libsecret-1-0
 
-      - run: npm ci --registry=https://registry.npmjs.org
       - run: npm run build
 
       - name: Build AppImage and DEB
@@ -641,7 +637,7 @@ jobs:
           --output "release/build-meta-linux-${{ matrix.arch }}.json"
           --signed false
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: distribution-linux-${{ matrix.arch }}
           path: |
@@ -664,18 +660,21 @@ jobs:
     permissions:
       actions: read
       contents: write
+      id-token: write # P1-3 构建溯源需要 OIDC token
+      attestations: write # P1-3 写入 attestation 记录
     steps:
-      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-env
         with:
           ref: ${{ needs.verify-source.outputs.commit }}
+          install-deps: false
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: distribution-*
           path: artifacts
           merge-multiple: true
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-sbom
           path: artifacts
@@ -691,7 +690,7 @@ jobs:
           RELEASE="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
           SIGNING_REQUIREMENT=()
           if [[ "$RELEASE_MODE" == "signed" ]]; then
-            SIGNING_REQUIREMENT=(--require-signed darwin,win32)
+            SIGNING_REQUIREMENT=(--require-signed "darwin,win32")
           fi
           node scripts/release.mjs merge \
             --input artifacts --output artifacts/release-manifest.json \
@@ -699,6 +698,11 @@ jobs:
             --expected darwin-arm64,darwin-x64,win32-x64,linux-x64,linux-arm64 \
             "${SIGNING_REQUIREMENT[@]}"
           node -e "const x=require('./artifacts/desktop-pet-v2.spdx.json'); if(x.spdxVersion!=='SPDX-2.3') process.exit(1)"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: artifacts/DesktopPet-*
 
       - name: Create immutable tag release
         env:
@@ -714,8 +718,11 @@ jobs:
             -name "release-manifest.json" -o \
             -name "desktop-pet-v2.spdx.json" \
           \) | sort)
-          [[ "${#FILES[@]}" -eq 13 ]] || {
-            printf '::error::正式发布文件数应为 13，实际 %s\n' "${#FILES[@]}"
+          ARTIFACT_COUNT=$(node -p "require('./artifacts/release-manifest.json').artifacts.length")
+          EXPECTED=$((ARTIFACT_COUNT + 3)) # 产物 + SHA256SUMS.txt + release-manifest.json + SBOM
+          [[ "${#FILES[@]}" -eq "$EXPECTED" ]] || {
+            printf '::error::正式发布文件数应为 %s（产物 %s + SHA256SUMS + manifest + SBOM），实际 %s\n' \
+              "$EXPECTED" "$ARTIFACT_COUNT" "${#FILES[@]}"
             printf '%s\n' "${FILES[@]}"
             exit 1
           }
