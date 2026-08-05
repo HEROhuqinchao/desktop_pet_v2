@@ -1,0 +1,7 @@
+name: Desktop Pet CodeQL config
+
+# 产物与依赖目录不参与静态分析
+paths-ignore:
+  - dist
+  - release
+  - node_modules

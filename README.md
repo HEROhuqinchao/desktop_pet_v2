@@ -41,6 +41,8 @@ Windows/Linux 真机验收仍等待仓库外条件。已建立：
 - Microsoft Store AppX x64 独立打包命令与 GitHub Actions 预览产物
 - Developer ID 公证与两阶段 SignPath 的正式发布失败关闭门禁
 - SHA-256、SPDX 2.3 SBOM 和跨平台 Release manifest
+- CodeQL 静态安全扫描、PR 依赖变更审查与每周依赖监控自动告警
+- 每周 Linux x64 预览打包冒烟，提前暴露原生模块 ABI 漂移
 - 运行时 JSON、TypeScript 单元测试、lint、类型检查和 Electron 构建门禁
 - 打包后 5 个 renderer、8 个数据文件和原生模块 ABI 校验
 

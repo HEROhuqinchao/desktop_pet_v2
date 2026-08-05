@@ -1,0 +1,81 @@
+name: Package Smoke
+
+# 创建者：husu
+# 每周一早晨在 Linux x64 上做一次 unsigned 预览打包冒烟：
+# 尽早暴露 Electron/原生模块 ABI 漂移与 electron-builder 回归，
+# 不占用 macOS/Windows 配额，也不触碰签名与发布通道。
+
+on:
+  schedule:
+    # UTC 周一 03:30 = 北京时间周一 11:30
+    - cron: "30 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-pet-v2-package-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-linux-x64:
+    name: Smoke Linux x64 preview package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install Linux runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libsecret-1-0
+
+      - run: npm ci --registry=https://registry.npmjs.org
+      - run: npm run build
+
+      - name: Build unsigned preview package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: >-
+          npx electron-builder --linux --x64
+          --config electron-builder.yml --publish never
+
+      - name: Verify packaged resources and native modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="release/linux-x64-unpacked"
+          [[ -d "$ROOT" ]] || ROOT="release/linux-unpacked"
+          BIN="$ROOT/desktop-pet-v2"
+          [[ -x "$BIN" ]] || { echo "::error::Linux executable missing: $BIN"; exit 1; }
+          node scripts/verify-packaged-native.mjs "$BIN" "$ROOT/resources"
+
+      - name: Verify installable artifacts and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          APPIMAGE_COUNT=$(find release -maxdepth 1 -name "DesktopPet-*.AppImage" | wc -l)
+          DEB_COUNT=$(find release -maxdepth 1 -name "DesktopPet-*.deb" | wc -l)
+          [[ "$APPIMAGE_COUNT" -eq 1 ]] || { echo "::error::AppImage 数量应为 1，实际 $APPIMAGE_COUNT"; exit 1; }
+          [[ "$DEB_COUNT" -eq 1 ]] || { echo "::error::DEB 数量应为 1，实际 $DEB_COUNT"; exit 1; }
+          node scripts/release.mjs metadata \
+            --platform linux --arch x64 --directory release \
+            --output release/build-meta-linux-x64.json --signed false
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: smoke-linux-x64
+          path: |
+            release/DesktopPet-*.AppImage
+            release/DesktopPet-*.deb
+            release/checksums-linux-x64.sha256
+            release/build-meta-linux-x64.json
+          if-no-files-found: error
+          retention-days: 7

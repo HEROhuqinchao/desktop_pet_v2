@@ -14,6 +14,7 @@
 | P1 | 签名凭据加人工闸门；action 钉 SHA；构建溯源 | 待实施 |
 | P2 | 去重门禁；消除魔法数字；清理死配置 | 待实施 |
 | P3 | 自动更新通道；runner 风险预案；CODEOWNERS | 规划中 |
+| 能力补齐 | CodeQL、依赖审查、每周依赖监控、打包冒烟、Dependabot | 已完成 |
 
 ## P0：止血（已完成）
 
@@ -35,6 +36,39 @@
 
 验收（人工）：在 GitHub 仓库 Settings → Secrets and variables → Actions
 补齐凭据后，将状态表更新为"已配置"，再推送下一个版本标签。
+
+## 已实施：能力补齐流水线
+
+在既有 Source Checks / Build, Sign & Release 之外新增四条流水线与一份
+Dependabot 配置，覆盖安全扫描、依赖治理与回归预警：
+
+1. **CodeQL（`.github/workflows/codeql.yml`）**：JavaScript/TypeScript
+   静态安全扫描（`security-and-quality` 查询集），PR 与 main push 必跑，
+   每周一 02:15 UTC 定时兜底。分析范围经 `.github/codeql-config.yml`
+   排除 `dist/`、`release/`、`node_modules/`。结果上传到代码安全页
+   （`security-events: write` 仅限该 job）。
+2. **Dependency Review（`.github/workflows/dependency-review.yml`）**：
+   PR 级依赖变更审查，`fail-on-severity: high`，阻断引入已知高危漏洞
+   的依赖升级；与发布通道的 `npm audit --audit-level=high` 门禁对齐，
+   把漏洞拦截点从发布前移到 PR。
+3. **Dependency Monitor（`.github/workflows/dependency-monitor.yml`）**：
+   每周一 03:00 UTC 定时执行生产依赖审计、Electron 版本落后检查
+   （落后官方超过两个大版本即告警）与 SPDX 2.3 SBOM 重生成（保留
+   14 天）。任一门禁失败自动创建 `dependencies` 标签的固定标题 Issue
+   并附运行链接，恢复后自动评论并关闭。需要仓库开启 Issues。
+4. **Package Smoke（`.github/workflows/package-smoke.yml`）**：每周一
+   03:30 UTC 在 Linux x64 做一次 unsigned 预览打包冒烟，复用
+   `verify-packaged-native.mjs` 与 `release.mjs metadata` 校验，提前
+   暴露 Electron/原生模块 ABI 漂移与 electron-builder 回归；只跑单
+   平台控制 Actions 配额，不触碰签名与发布通道。产物保留 7 天。
+5. **Dependabot（`.github/dependabot.yml`）**：npm 与 github-actions
+   生态每周一更新；生产/开发依赖的 minor+patch 分组提 PR；Electron
+   大版本升级被 ignore（涉及原生模块 ABI 与发布验收，手工推进）。
+   与 P1-2 的 action 钉 SHA 策略配套：SHA 升级由 Dependabot PR 承载。
+
+验收：actionlint 全部通过；`npm run check` 全绿。新流水线在 PR 创建后
+由 GitHub 侧实际运行确认（CodeQL/Dependency Review 随 PR 触发，两条
+定时任务首个周一自动运行，也可手动 `workflow_dispatch` 提前验证）。
 
 ## P1：安全加固
 
@@ -63,7 +97,8 @@ action 的钉法一致，例如：
 - uses: actions/checkout@<full-sha> # v7.x.y
 ```
 
-可同时为 `github-actions` 生态启用 Dependabot，保持 SHA 跟随上游更新。
+可同时为 `github-actions` 生态启用 Dependabot，保持 SHA 跟随上游更新
+（已通过 `.github/dependabot.yml` 启用，见"已实施：能力补齐流水线"）。
 
 验收：`grep -R "uses: actions/" .github` 不再出现裸大版本标签。
 

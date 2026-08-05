@@ -1,0 +1,127 @@
+name: Dependency Monitor
+
+# 创建者：husu
+# 每周一早晨定时审计生产依赖、检查 Electron 版本差距并重新生成 SBOM；
+# 任一门禁失败时创建或更新一个固定标题的 Issue 跟踪，恢复后自动关闭。
+
+on:
+  schedule:
+    # UTC 周一 03:00 = 北京时间周一 11:00
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-pet-v2-dependency-monitor
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Weekly audit and SBOM
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install locked dependencies
+        run: npm ci --registry=https://registry.npmjs.org
+
+      - name: Audit production dependencies
+        id: audit
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
+
+      - name: Check Electron version freshness
+        id: electron
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          CURRENT="$(node -p "require('electron/package.json').version")"
+          LATEST="$(gh api repos/electron/electron/releases/latest -q .tag_name | sed 's/^v//')"
+          CURRENT_MAJOR="${CURRENT%%.*}"
+          LATEST_MAJOR="${LATEST%%.*}"
+          GAP=$((LATEST_MAJOR - CURRENT_MAJOR))
+          echo "current=$CURRENT latest=$LATEST gap=$GAP"
+          echo "gap=$GAP" >> "$GITHUB_OUTPUT"
+          if (( GAP > 2 )); then
+            echo "落后 Electron 官方超过两个大版本：current=$CURRENT latest=$LATEST"
+            exit 1
+          fi
+
+      - name: Generate SPDX 2.3 SBOM
+        run: |
+          npm --silent run sbom > desktop-pet-v2.spdx.json
+          node -e "const x=require('./desktop-pet-v2.spdx.json'); if(x.spdxVersion!=='SPDX-2.3') process.exit(1)"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: weekly-sbom
+          path: desktop-pet-v2.spdx.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Report status via issue
+        if: always()
+        uses: actions/github-script@v8
+        env:
+          AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+          ELECTRON_OUTCOME: ${{ steps.electron.outcome }}
+          ELECTRON_GAP: ${{ steps.electron.outputs.gap }}
+        with:
+          script: |
+            const title = '[Dependency Monitor] 每周依赖监控告警';
+            const auditFailed = process.env.AUDIT_OUTCOME === 'failure';
+            const electronFailed = process.env.ELECTRON_OUTCOME === 'failure';
+            const healthy = !auditFailed && !electronFailed;
+            const { owner, repo } = context.repo;
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', labels: 'dependencies', per_page: 100,
+            });
+            const issue = existing.find((item) => item.title === title && !item.pull_request);
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const gap = process.env.ELECTRON_GAP || '0';
+
+            if (healthy) {
+              if (issue) {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: issue.number,
+                  body: `依赖监控已恢复正常（[运行记录](${runUrl})），自动关闭。`,
+                });
+                await github.rest.issues.update({
+                  owner, repo, issue_number: issue.number, state: 'closed', state_reason: 'completed',
+                });
+              }
+              return;
+            }
+
+            const sections = [
+              `本周依赖监控发现问题（[运行记录](${runUrl})）：`,
+              auditFailed ? '- `npm audit --omit=dev --audit-level=high` 发现高危生产依赖漏洞。' : null,
+              electronFailed ? `- Electron 版本落后官方超过两个大版本（落后 ${gap} 个大版本），需评估升级。` : null,
+              '',
+              '处理完成后本任务会在恢复正常时自动关闭本 Issue。',
+            ].filter((line) => line !== null);
+            const body = sections.join('\n');
+
+            if (issue) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issue.number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner, repo, title, body, labels: ['dependencies'],
+              });
+            }

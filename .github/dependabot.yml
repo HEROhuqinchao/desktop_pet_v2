@@ -1,0 +1,38 @@
+# 创建者：husu
+# 依赖与 GitHub Actions 的周度更新；与流水线 SHA 钉版本策略配套，
+# 保证 action SHA 注释能跟随 Dependabot PR 自动升级。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: UTC
+    open-pull-requests-limit: 10
+    groups:
+      production-dependencies:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      development-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Electron 大版本升级涉及原生模块 ABI 与发布验收，手工推进
+      - dependency-name: electron
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: UTC
+    open-pull-requests-limit: 5

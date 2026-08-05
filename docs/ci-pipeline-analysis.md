@@ -11,7 +11,12 @@
 | --- | --- | --- | --- |
 | `.github/workflows/ci.yml` | Source Checks | `pull_request`、push `main`、手动 | 三平台源码门禁（lint/typecheck/verify:data/test/build），Linux 额外做依赖树、审计与 SBOM |
 | `.github/workflows/package.yml` | Build, Sign & Release | `workflow_dispatch`（预览）、push `v*` 标签（正式） | 全平台构建、签名、公证、校验与 GitHub Release |
+| `.github/workflows/codeql.yml` | CodeQL | `pull_request`、push `main`、每周一、手动 | JavaScript/TypeScript 静态安全扫描（security-and-quality） |
+| `.github/workflows/dependency-review.yml` | Dependency Review | `pull_request` | 阻断引入已知高危漏洞依赖的 PR |
+| `.github/workflows/dependency-monitor.yml` | Dependency Monitor | 每周一、手动 | 生产依赖审计、Electron 版本落后检查、SBOM 重生成；失败自动建 Issue，恢复自动关闭 |
+| `.github/workflows/package-smoke.yml` | Package Smoke | 每周一、手动 | Linux x64 unsigned 预览打包冒烟，提前暴露原生模块 ABI / electron-builder 回归 |
 | `.github/release.yml` | 自动 Release Notes 配置 | — | 按标签分类生成变更日志（当前未生效，见缺点 D4） |
+| `.github/dependabot.yml` | Dependabot 配置 | 每周一 | npm 与 github-actions 依赖更新 PR（Electron 大版本除外） |
 | `scripts/release.mjs` | 发布工具 | 被 workflow 调用 | 版本/标签/lockfile 一致性校验、平台元数据、SHA-256、清单聚合 |
 | `scripts/verify-packaged-native.mjs` | 打包校验 | 被 workflow 调用 | 校验打包产物中原生模块（better-sqlite3 / keyring）的平台与 ABI |
 

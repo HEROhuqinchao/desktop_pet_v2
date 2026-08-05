@@ -1,0 +1,43 @@
+name: CodeQL
+
+# 创建者：husu
+# JavaScript/TypeScript 静态安全扫描；PR 与 main 必跑，每周一早晨定时兜底。
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    # UTC 周一 02:15 = 北京时间周一 10:15
+    - cron: "15 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-pet-v2-codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze JavaScript/TypeScript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+          # 产物与依赖目录由配置文件排除
+          config-file: .github/codeql-config.yml
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:javascript-typescript"

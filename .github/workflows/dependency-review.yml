@@ -1,0 +1,28 @@
+name: Dependency Review
+
+# 创建者：husu
+# PR 中 lockfile 变更时，阻断引入已知高危漏洞的依赖；
+# 未变更依赖清单时该 action 会直接通过。
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-pet-v2-dependency-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review dependency changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/dependency-review-action@v4
+        with:
+          # 与发布门禁一致：高危漏洞阻断 PR，中低危仅提示
+          fail-on-severity: high
