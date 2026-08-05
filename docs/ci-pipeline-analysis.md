@@ -5,6 +5,9 @@
 分析基线：分支 `fix/ci-cross-platform-release-gates`（基于 `18ff20b` v0.1.1 发布提交），
 结合 2026-07-31 至 2026-08-04 的 GitHub Actions 真实运行记录。
 
+各流水线"做什么"的完整功能说明见 [`ci-pipelines-overview.md`](./ci-pipelines-overview.md)；
+本文聚焦优点、缺点与真实运行证据。
+
 ## 流水线构成
 
 | 文件 | 名称 | 触发方式 | 职责 |

@@ -163,6 +163,7 @@ release/mac-arm64/Desktop Pet.app
 - [`docs/alignment-execution-plan.md`](docs/alignment-execution-plan.md)
 - [`docs/asset-gaps.md`](docs/asset-gaps.md)
 - [`docs/release-operations.md`](docs/release-operations.md)
+- [`docs/ci-pipelines-overview.md`](docs/ci-pipelines-overview.md)
 - [`docs/ci-pipeline-analysis.md`](docs/ci-pipeline-analysis.md)
 - [`docs/ci-pipeline-improvement-plan.md`](docs/ci-pipeline-improvement-plan.md)
 - [`docs/licensing-and-provenance.md`](docs/licensing-and-provenance.md)
