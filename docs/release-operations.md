@@ -113,7 +113,8 @@ workflow 会先签 unpacked app，再从已签目录生成 NSIS/portable，随�
    Variables）已配置，且 App/Distribution 两份 Artifact Configuration 已在
    SignPath 后台创建完成。
 4. 需要随版本入库的变更已合并，标签指向的提交在 main 上且 `Source Checks` 全绿。
-5. 工作区干净（tag 触发时会执行 `--require-clean` 校验）。
+5. 工作区干净（signed 与 unsigned 两种 Release 模式都会执行
+   `--require-clean` 校验）。
 
 当前配置状态（2026-08-04 更新）：
 

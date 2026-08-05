@@ -2,11 +2,12 @@
 
 创建者：husu
 
-基线：分支 `fix/ci-cross-platform-release-gates`（2026-08-05）。
-项目当前共有 6 条 GitHub Actions 流水线、3 份 `.github/` 配置与 2 个发布
-脚本工具。本文逐一说明它们的定位、触发方式、执行内容与相互协作关系；
-优缺点评估与改造路线见 [`ci-pipeline-analysis.md`](./ci-pipeline-analysis.md)
-与 [`ci-pipeline-improvement-plan.md`](./ci-pipeline-improvement-plan.md)。
+基线：分支 `fix/ci-cross-platform-release-gates`（2026-08-05，已并入
+`7bbed85` 的 signed/unsigned 发布模式拆分）。项目当前共有 6 条 GitHub
+Actions 流水线、3 份 `.github/` 配置与 2 个发布脚本工具。本文逐一说明
+它们的定位、触发方式、执行内容与相互协作关系；优缺点评估与改造路线见
+[`ci-pipeline-analysis.md`](./ci-pipeline-analysis.md) 与
+[`ci-pipeline-improvement-plan.md`](./ci-pipeline-improvement-plan.md)。
 
 ## 清单速览
 
@@ -15,7 +16,7 @@
 | 1 | `workflows/ci.yml`（Source Checks） | workflow | 三平台源码门禁，代码质量的守门员 |
 | 2 | `workflows/codeql.yml`（CodeQL） | workflow | JS/TS 静态安全扫描 |
 | 3 | `workflows/dependency-review.yml`（Dependency Review） | workflow | PR 级依赖漏洞阻断 |
-| 4 | `workflows/package.yml`（Build, Sign & Release） | workflow | 全平台构建、签名、公证与正式发布的唯一通道 |
+| 4 | `workflows/package.yml`（Build, Sign & Release） | workflow | preview/unsigned/signed 三模式构建与发布的唯一通道 |
 | 5 | `workflows/dependency-monitor.yml`（Dependency Monitor） | workflow | 每周依赖健康巡检与自动告警闭环 |
 | 6 | `workflows/package-smoke.yml`（Package Smoke） | workflow | 每周打包冒烟，提前暴露打包链路回归 |
 | 7 | `dependabot.yml` | 配置 | npm 与 Actions 依赖的周度自动更新 |
@@ -30,8 +31,9 @@
 | --- | --- | --- |
 | 开 PR | Source Checks、CodeQL、Dependency Review | 代码质量、安全扫描、依赖漏洞三道门禁 |
 | 合并入 main | Source Checks、CodeQL | 主干回归兜底 |
-| 手动预览 | Build, Sign & Release（dispatch） | unsigned 预览包，验证打包链路 |
-| 推 `v*` 标签 | Build, Sign & Release（tag） | 签名、公证、校验、创建正式 GitHub Release |
+| 手动预览 | Build, Sign & Release（dispatch preview） | unsigned 预览包，验证打包链路 |
+| 推 `vX.Y.Z-unsigned` 标签 | Build, Sign & Release（unsigned） | 无凭据全平台构建，创建未签名 Prerelease |
+| 推 `vX.Y.Z` 标签 | Build, Sign & Release（signed） | 签名、公证、校验、创建稳定 GitHub Release |
 | 每周一 | CodeQL（定时）、Dependency Monitor、Package Smoke、Dependabot | 安全兜底、依赖巡检、打包预演、更新提案 |
 
 ## 1. Source Checks（ci.yml）
@@ -84,35 +86,47 @@ lockfile，就对比 base 分支分析新增/变更依赖的已知漏洞与许�
 
 ## 4. Build, Sign & Release（package.yml）
 
-**作用**：从源码到可分发安装包的唯一通道，也是正式发布的唯一入口。
-预览模式产出 unsigned 短期 Artifact 供验证；tag 模式强制完成签名、
-公证与 Release 创建，任何凭据缺失都会失败关闭而不是降级发布。
+**作用**：从源码到可分发安装包的唯一通道，也是 Release 的唯一入口。
+支持三种发布模式：`preview` 只产出短期 Artifact 供验证；`unsigned`
+在无签名凭据时产出全平台 Prerelease；`signed` 强制完成签名、公证与
+稳定 Release 创建，任何凭据缺失都会失败关闭而不是降级发布。
 
-触发：`workflow_dispatch`（可选平台：all / macos-arm64 / macos-x64 /
-windows-x64 / windows-store-x64 / linux-x64 / linux-arm64）；
-push `v*` 标签。
+触发：`workflow_dispatch`（两个输入：平台 platform 与发布模式
+`release_mode`，可选 preview / unsigned-release / signed-release）；
+push `v*` 标签。模式解析规则（由 verify-source 计算并输出
+`release-mode`）：
+
+- `vX.Y.Z` 标签 → `signed`；`vX.Y.Z-unsigned` 标签 → `unsigned`；
+- dispatch 显式选择 unsigned-release / signed-release 时，必须运行在
+  匹配的标签 ref 上，且必须构建 all 平台，否则直接失败；
+- dispatch 默认 preview，仅生成 7 天留存 Artifact，不创建 Release。
 
 ### verify-source（所有构建的前置）
 
-解析不可变的版本与来源：读取 `package.json` 版本，执行
-`scripts/release.mjs verify`（tag 触发时追加 `--tag` 标签一致性与
-`--require-clean` 工作区校验）；输出精确 commit 与动态平台矩阵 JSON；
-重跑完整 `npm run check`、依赖树/审计门禁与发布版 SBOM（`release-sbom`
-Artifact）。所有下游 job 一律 checkout 它输出的精确 commit，保证
-"验证过的源码 == 打包的源码"。
+解析不可变的版本、来源与发布模式：读取 `package.json` 版本，按
+标签名与 `release_mode` 输入解析出 signed / unsigned / preview；
+Release 模式执行 `scripts/release.mjs verify --tag ... --release-mode
+... --require-clean`（signed 要求标签为 `vX.Y.Z`，unsigned 要求
+`vX.Y.Z-unsigned`，均要求工作区干净），preview 只做基础校验；输出
+精确 commit、`release-mode` 与动态平台矩阵 JSON；重跑完整
+`npm run check`、依赖树/审计门禁与发布版 SBOM（`release-sbom`
+Artifact）。所有下游 job 一律 checkout 它输出的精确 commit，并以
+`release-mode` 而非 ref 类型决定是否走签名路径，保证"验证过的源码
+== 打包的源码"。
 
 ### build-macos
 
-arm64（`macos-15`）与 x64（`macos-15-intel`）双架构矩阵。tag 触发时
+arm64（`macos-15`）与 x64（`macos-15-intel`）双架构矩阵。signed 模式
 先强制校验六个 Apple 凭据（`MAC_CSC_*` + `APPLE_API_*`）齐全，再以
-Developer ID 签名 + hardenedRuntime + 公证构建；分支触发为 unsigned
-预览。打包后统一执行 `verify-packaged-native.mjs` 校验原生模块；tag
-构建追加 `codesign --verify`、`spctl --assess`、`xcrun stapler
-validate` 三重验证。产出 DMG + ZIP + checksums + build-meta。
+Developer ID 签名 + hardenedRuntime + 公证构建；preview 与 unsigned
+模式构建 unsigned 包。打包后统一执行 `verify-packaged-native.mjs`
+校验原生模块；signed 模式追加 `codesign --verify`、`spctl --assess`、
+`xcrun stapler validate` 三重验证。产出 DMG + ZIP + checksums +
+build-meta（`--signed` 标记随模式取值）。
 
 ### build-windows
 
-两阶段 SignPath 开源签名流程：
+signed 模式执行两阶段 SignPath 开源签名流程：
 
 1. 先构建 unsigned unpacked app 并上传，提交 SignPath 签署主 exe 与
    全部 `.node` PE 文件；
@@ -120,17 +134,19 @@ validate` 三重验证。产出 DMG + ZIP + checksums + build-meta。
    第二次提交 SignPath 签署外层安装包。
 
 每个阶段返回后都用 Windows SDK SignTool `verify /pa /all /tw` 逐文件
-做 Authenticode + 时间戳验证。tag 触发时 SignPath 的 Secret 与五个
-Repository Variables 缺一即失败。分支触发为 unsigned 预览。产出
-Setup.exe + Portable.exe + checksums + build-meta。
+做 Authenticode + 时间戳验证。signed 模式下 SignPath 的 Secret 与五个
+Repository Variables 缺一即失败。preview 与 unsigned 模式直接以
+unsigned unpacked 目录生成发行包。产出 Setup.exe + Portable.exe +
+checksums + build-meta。
 
 ### build-windows-store
 
-仅手动触发、独立于 Release 与 SignPath 通道。构建 Microsoft Store
-AppX：支持 Partner Center 正式产品标识（三个 `MS_STORE_*` Variables
-覆盖，必须同时配置），构建后用 `makeappx unpack` 解包校验 Manifest 的
-Identity Name / Publisher / PublisherDisplayName 三件套。AppX 不签名，
-上传商店后由 Microsoft 重签名。产出 Store.appx + checksum + build-meta。
+仅手动触发且仅 preview 模式执行、独立于 Release 与 SignPath 通道。
+构建 Microsoft Store AppX：支持 Partner Center 正式产品标识（三个
+`MS_STORE_*` Variables 覆盖，必须同时配置），构建后用
+`makeappx unpack` 解包校验 Manifest 的 Identity Name / Publisher /
+PublisherDisplayName 三件套。AppX 不签名，上传商店后由 Microsoft
+重签名。产出 Store.appx + checksum + build-meta。
 
 ### build-linux
 
@@ -138,15 +154,22 @@ x64（`ubuntu-24.04`）与 arm64（`ubuntu-24.04-arm`）双架构矩阵，安装
 `libsecret-1-0` 运行时库，产出 AppImage + DEB + checksums + build-meta，
 并执行原生模块校验。Linux 包不签名（`--signed false`）。
 
-### release（仅 tag 触发）
+### release（signed 与 unsigned 模式）
 
 聚合全部 `distribution-*` Artifact 与 SBOM，执行
 `scripts/release.mjs merge`：按 SHA-256 逐文件复核哈希与大小、强制五
-平台（darwin-arm64/x64、win32-x64、linux-x64/arm64）齐全、darwin 与
-win32 必须标记已签名，生成 `release-manifest.json` 与 `SHA256SUMS.txt`；
-最后 `gh release create --verify-tag` 发布 13 个文件（10 个安装包 +
-checksums 清单 + manifest + SBOM），防止覆盖已有 Release。该 job 是全
-workflow 唯一持有 `contents: write` 的位置。
+平台（darwin-arm64/x64、win32-x64、linux-x64/arm64）齐全；signed 模式
+追加 `--require-signed darwin,win32`，unsigned 模式允许未签名产物。
+生成 `release-manifest.json` 与 `SHA256SUMS.txt` 后，
+`gh release create --verify-tag` 发布 13 个文件（10 个安装包 +
+checksums 清单 + manifest + SBOM），防止覆盖已有 Release：
+
+- signed：稳定 Release，标题 `Desktop Pet V2 <version>`；
+- unsigned：`--prerelease` 标记的 Prerelease，标题追加
+  `Unsigned Preview`，notes 自动在 `RELEASE_NOTES.md` 前拼接未签名
+  警示横幅，避免误当正式版分发。
+
+该 job 是全 workflow 唯一持有 `contents: write` 的位置。
 
 ## 5. Dependency Monitor（dependency-monitor.yml）
 
@@ -210,9 +233,11 @@ RELEASE_NOTES.md` 创建，不会使用自动 notes。改造方案 P2-3 建议�
 ## 发布脚本工具（被流水线复用）
 
 - `scripts/release.mjs`：三个子命令——`verify`（SemVer/tag/lockfile
-  一致性、发布必需文件清单、工作区干净校验）、`metadata`（平台产物
-  SHA-256 与 build-meta JSON）、`merge`（聚合复核 + manifest +
-  SHA256SUMS，含 HTTPS/凭据 URL 安全检查）。
+  一致性、发布必需文件清单、工作区干净校验；`--release-mode` 区分
+  signed/unsigned，分别要求标签 `vX.Y.Z` / `vX.Y.Z-unsigned`）、
+  `metadata`（平台产物 SHA-256 与 build-meta JSON）、`merge`（聚合
+  复核 + manifest + SHA256SUMS，`--require-signed` 仅 signed 模式
+  传入，含 HTTPS/凭据 URL 安全检查）。
 - `scripts/verify-packaged-native.mjs`：在打包产物内部校验
   better-sqlite3 与 @napi-rs/keyring 的平台文件与 Electron ABI，被
   package.yml 三个构建 job 与 Package Smoke 复用。
@@ -227,8 +252,9 @@ Source Checks 与 Build, Sign & Release 的 `npm audit` 门禁在每次变更
 Review、Source Checks、CodeQL 三道门禁 → 合并后进入发布通道。
 
 发布质量闭环：main 保持 CI 全绿 → 手动 dispatch 预览验证打包 → 每周
-Package Smoke 持续预演打包链路 → 凭据就绪后推 tag → 失败关闭的签名/
-公证/哈希复核 → 不可变的 GitHub Release。
+Package Smoke 持续预演打包链路 → 推 `vX.Y.Z-unsigned` 标签产出未签名
+Prerelease 供真实环境验收 → 凭据就绪后推 `vX.Y.Z` 标签 → 失败关闭的
+签名/公证/哈希复核 → 不可变的稳定 GitHub Release。
 
 已知限制（详见改造方案）：签名 job 尚无 environment 审批闸门；第一方
 action 尚未全部钉 SHA；无构建溯源 attestation；`release` job 存在

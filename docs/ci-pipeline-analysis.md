@@ -33,29 +33,37 @@ SBOM 作为 `ci-sbom` Artifact 保留 7 天。
 
 ### Build, Sign & Release（package.yml）
 
-共 7 个 job，依赖链为 `verify-source → build-* → release`：
+共 7 个 job，依赖链为 `verify-source → build-* → release`。自
+`7bbed85` 起采用三模式发布：`verify-source` 解析出 `release-mode`
+（preview / unsigned / signed），各签名步骤以 `release-mode == 'signed'`
+为条件而非 ref 类型：
 
-- `verify-source`：fetch-depth 0，解析 package.json 版本与精确 commit，
-  tag 触发时执行 `release.mjs verify --tag --require-clean`；重跑完整
-  `npm run check`、依赖审计与 SBOM；输出动态平台矩阵 JSON。
-- `build-macos`：arm64（`macos-15`）/ x64（`macos-15-intel`）矩阵。tag 触发
-  强制六个 Apple 凭据非空，使用 Developer ID 签名 + hardenedRuntime + 公证；
-  分支触发为 unsigned 预览。打包后校验原生模块，tag 构建追加
+- `verify-source`：fetch-depth 0，解析 package.json 版本、精确 commit
+  与 release-mode（`vX.Y.Z`→signed、`vX.Y.Z-unsigned`→unsigned、
+  dispatch 默认 preview）；Release 模式执行 `release.mjs verify --tag
+  --release-mode --require-clean`；重跑完整 `npm run check`、依赖审计
+  与 SBOM；输出动态平台矩阵 JSON。
+- `build-macos`：arm64（`macos-15`）/ x64（`macos-15-intel`）矩阵。signed
+  模式强制六个 Apple 凭据非空，使用 Developer ID 签名 + hardenedRuntime +
+  公证；preview/unsigned 为未签名包。打包后校验原生模块，signed 构建追加
   `codesign --verify`、`spctl --assess`、`xcrun stapler validate`。
-- `build-windows`：两阶段 SignPath 开源签名——先签 unpacked app（主 exe 与
-  `.node` PE 文件），再用已签目录通过 `--prepackaged` 生成 NSIS/portable，
-  第二次签外层安装包。每阶段用 Windows SDK SignTool `verify /pa /all /tw`
-  逐文件做 Authenticode + 时间戳验证。分支触发为 unsigned 预览。
-- `build-windows-store`：仅手动触发，独立于 Release/SignPath 通道。AppX 不签名
-  （商店重签名），但会用 `makeappx unpack` 解包校验 Manifest 的 Identity Name /
-  Publisher / PublisherDisplayName 三件套，支持 Repository Variables 覆盖
+- `build-windows`：signed 模式两阶段 SignPath 开源签名——先签 unpacked
+  app（主 exe 与 `.node` PE 文件），再用已签目录通过 `--prepackaged` 生成
+  NSIS/portable，第二次签外层安装包。每阶段用 Windows SDK SignTool
+  `verify /pa /all /tw` 逐文件做 Authenticode + 时间戳验证。preview/unsigned
+  直接以未签名目录产出。
+- `build-windows-store`：仅手动触发且仅 preview 模式，独立于
+  Release/SignPath 通道。AppX 不签名（商店重签名），但会用
+  `makeappx unpack` 解包校验 Manifest 的 Identity Name / Publisher /
+  PublisherDisplayName 三件套，支持 Repository Variables 覆盖
   Partner Center 正式产品标识（三项必须同时配置）。
 - `build-linux`：x64（`ubuntu-24.04`）/ arm64（`ubuntu-24.04-arm`）矩阵，
   安装 `libsecret-1-0`，产出 AppImage + DEB。
-- `release`：仅 tag 触发，聚合全部 `distribution-*` Artifact 与 SBOM，
-  `release.mjs merge` 按 SHA-256 重新校验每个文件、强制五平台齐全且
-  darwin/win32 必须已签名，最后 `gh release create --verify-tag`
-  发布 13 个文件并附 `RELEASE_NOTES.md`。
+- `release`：signed 与 unsigned 模式触发，聚合全部 `distribution-*`
+  Artifact 与 SBOM，`release.mjs merge` 按 SHA-256 重新校验每个文件、
+  强制五平台齐全；signed 模式追加 `--require-signed darwin,win32`。
+  `gh release create --verify-tag` 发布 13 个文件；unsigned 模式追加
+  `--prerelease` 并生成未签名警示 notes。
 
 ## 实际运行证据（截至 2026-08-04）
 

@@ -74,7 +74,8 @@ Dependabot 配置，覆盖安全扫描、依赖治理与回归预警：
 
 ### P1-1 签名 job 增加环境审批闸门
 
-为消费签名凭据的 job 引入受保护 environment，tag 触发后先经人工批准：
+为消费签名凭据的 job 引入受保护 environment，进入 signed 发布模式
+（仍由 `vX.Y.Z` 标签触发）后先经人工批准：
 
 ```yaml
 # package.yml：build-macos、build-windows、release 三个 job 增加
@@ -82,10 +83,11 @@ Dependabot 配置，覆盖安全扫描、依赖治理与回归预警：
 ```
 
 随后在仓库 Settings → Environments → `release` 配置 Required reviewers。
-预览（分支）构建不受影响，因为签名步骤本身只在 tag 触发时执行。
+preview 与 unsigned 模式不受影响，因为签名步骤只在
+`release-mode == 'signed'` 时执行。
 
-验收：推送测试 tag 后，job 停在等待审批状态，批准前不出现任何签名
-凭据调用日志。
+验收：推送测试 `vX.Y.Z` 标签后，signed 模式的签名 job 停在等待审批
+状态，批准前不出现任何签名凭据调用日志。
 
 ### P1-2 第一方 action 统一钉 SHA
 
