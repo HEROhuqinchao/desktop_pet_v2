@@ -1,8 +1,10 @@
 import type {
+  MotionState,
   PetActionDefinition,
   PetActionManifest,
   PetBehaviorState,
 } from '../shared/contracts';
+import { dragDirectionForVelocity } from './atlas';
 
 export function actionForState(
   manifest: PetActionManifest,
@@ -10,6 +12,18 @@ export function actionForState(
 ): string | null {
   const action = manifest.stateMap[state];
   return action && manifest.animations[action] ? action : null;
+}
+
+export function actionForMotion(
+  manifest: PetActionManifest,
+  motion: MotionState,
+): string | null {
+  const state = motion.phase === 'dragging'
+    ? dragDirectionForVelocity(motion.velocityX) === 'left'
+      ? 'RUN_LEFT'
+      : 'RUN_RIGHT'
+    : motion.behaviorState;
+  return actionForState(manifest, state);
 }
 
 export function actionDurationSeconds(

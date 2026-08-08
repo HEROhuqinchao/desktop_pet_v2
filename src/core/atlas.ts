@@ -60,6 +60,14 @@ export const ATLAS_ANIMATIONS = {
 
 export type AtlasAnimationName = keyof typeof ATLAS_ANIMATIONS;
 
+export type HorizontalDragDirection = 'left' | 'right';
+
+export function dragDirectionForVelocity(
+  velocityX: number,
+): HorizontalDragDirection {
+  return velocityX < -8 ? 'left' : 'right';
+}
+
 const STATE_ANIMATIONS: Readonly<
   Record<PetBehaviorState, AtlasAnimationName>
 > = {
@@ -97,7 +105,9 @@ const STATE_ANIMATIONS: Readonly<
 
 export function animationForMotion(state: MotionState): AtlasAnimationName {
   if (state.phase === 'dragging') {
-    return state.velocityX < -8 ? 'runningLeft' : 'runningRight';
+    return dragDirectionForVelocity(state.velocityX) === 'left'
+      ? 'runningLeft'
+      : 'runningRight';
   }
   if (state.phase === 'thrown') {
     return 'jump';

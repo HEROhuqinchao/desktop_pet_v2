@@ -12,7 +12,7 @@ import {
   framePosition,
 } from '../../core/atlas';
 import {
-  actionForState,
+  actionForMotion,
   actionFrameAtElapsed,
   actionFramePosition,
   actionHasCompleted,
@@ -274,7 +274,7 @@ export function PetApp() {
         && !lookActive
         && actionManifest
         && actionImage
-          ? actionForState(actionManifest, motion.behaviorState)
+          ? actionForMotion(actionManifest, motion)
           : null;
 
       let sourceImage = image;
